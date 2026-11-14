@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,8 +29,6 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -55,7 +52,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.core.i18n.AppLanguage
 import com.example.core.i18n.Strings
 import com.example.data.model.AlgerianCarCatalog
@@ -67,10 +63,6 @@ import com.example.ui.components.DongleBuyingGuideContent
 import com.example.ui.components.DongleVectorIllustration
 import com.example.ui.components.ObdPortUnderSteeringVectorIllustration
 import com.example.ui.theme.FahsBrand
-import com.example.ui.theme.FahsBrandSoft
-import com.example.ui.theme.FahsHairline
-import com.example.ui.theme.FahsInk
-import com.example.ui.theme.FahsMutedText
 import com.example.ui.theme.ResultCheckOrange
 import com.example.ui.theme.ResultNormalGreen
 import com.example.ui.theme.ResultProblemRed
@@ -83,12 +75,6 @@ fun BuyerTipsScreen(
     initialSection: String = "HOW_TO_USE_DONGLE",
     modifier: Modifier = Modifier
 ) {
-    // Sections in Guide tab:
-    // HOW_TO_USE_DONGLE (How to use a dongle & where the OBD port is)
-    // TIPS (Buyer tips)
-    // WEAK_POINTS (Model tips & OBD port location per car)
-    // ORDER_DONGLE (Order an OBD dongle)
-    // DTC_DICTIONARY (Offline fault code explanations)
     var selectedSection by remember(initialSection) { mutableStateOf(initialSection) }
     var dtcSearchQuery by remember { mutableStateOf("") }
     var modelSearchQuery by remember { mutableStateOf("") }
@@ -114,6 +100,13 @@ fun BuyerTipsScreen(
             AlgerianCarCatalogExtra.matchesFuzzySearch(car, modelSearchQuery)
         }
     }
+
+    val chipColors = FilterChipDefaults.filterChipColors(
+        containerColor = MaterialTheme.colorScheme.surface,
+        labelColor = MaterialTheme.colorScheme.onSurface,
+        selectedContainerColor = FahsBrand,
+        selectedLabelColor = Color.White
+    )
 
     LazyColumn(
         modifier = modifier
@@ -143,7 +136,7 @@ fun BuyerTipsScreen(
                         AppLanguage.EN -> "How to use a dongle, where the OBD port is, buyer tips, and ordering."
                     },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = FahsMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -168,9 +161,12 @@ fun BuyerTipsScreen(
                             }
                         )
                     },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = FahsBrand,
-                        selectedLabelColor = Color.White
+                    colors = chipColors,
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = selectedSection == "HOW_TO_USE_DONGLE",
+                        borderColor = MaterialTheme.colorScheme.outline,
+                        selectedBorderColor = FahsBrand
                     ),
                     modifier = Modifier.testTag("guide_tab_how_to_use")
                 )
@@ -186,9 +182,12 @@ fun BuyerTipsScreen(
                             }
                         )
                     },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = FahsBrand,
-                        selectedLabelColor = Color.White
+                    colors = chipColors,
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = selectedSection == "TIPS",
+                        borderColor = MaterialTheme.colorScheme.outline,
+                        selectedBorderColor = FahsBrand
                     ),
                     modifier = Modifier.testTag("guide_tab_tips")
                 )
@@ -204,9 +203,12 @@ fun BuyerTipsScreen(
                             }
                         )
                     },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = FahsBrand,
-                        selectedLabelColor = Color.White
+                    colors = chipColors,
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = selectedSection == "WEAK_POINTS",
+                        borderColor = MaterialTheme.colorScheme.outline,
+                        selectedBorderColor = FahsBrand
                     ),
                     modifier = Modifier.testTag("guide_tab_weak_points")
                 )
@@ -222,9 +224,12 @@ fun BuyerTipsScreen(
                             }
                         )
                     },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = FahsBrand,
-                        selectedLabelColor = Color.White
+                    colors = chipColors,
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = selectedSection == "ORDER_DONGLE",
+                        borderColor = MaterialTheme.colorScheme.outline,
+                        selectedBorderColor = FahsBrand
                     ),
                     modifier = Modifier.testTag("guide_tab_order_dongle")
                 )
@@ -240,9 +245,12 @@ fun BuyerTipsScreen(
                             }
                         )
                     },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = FahsBrand,
-                        selectedLabelColor = Color.White
+                    colors = chipColors,
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = selectedSection == "DTC_DICTIONARY",
+                        borderColor = MaterialTheme.colorScheme.outline,
+                        selectedBorderColor = FahsBrand
                     ),
                     modifier = Modifier.testTag("guide_tab_dtc_dict")
                 )
@@ -256,7 +264,7 @@ fun BuyerTipsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, FahsHairline)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                     ) {
                         Column(
                             modifier = Modifier.padding(20.dp),
@@ -266,7 +274,11 @@ fun BuyerTipsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                ObdPortUnderSteeringVectorIllustration(size = 76.dp)
+                                ObdPortUnderSteeringVectorIllustration(
+                                    size = 76.dp,
+                                    strokeColor = MaterialTheme.colorScheme.onSurface,
+                                    accentColor = MaterialTheme.colorScheme.primary
+                                )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = when (language) {
@@ -286,18 +298,23 @@ fun BuyerTipsScreen(
                                             AppLanguage.EN -> "On most cars, the port is under the steering wheel near the pedals, or behind a small plastic cover near the fuse box or center console."
                                         },
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = FahsMutedText
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
 
-                            HorizontalDivider(color = FahsHairline, thickness = 1.dp)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                DongleVectorIllustration(size = 72.dp, isConnected = true)
+                                DongleVectorIllustration(
+                                    size = 72.dp,
+                                    strokeColor = MaterialTheme.colorScheme.onSurface,
+                                    accentColor = MaterialTheme.colorScheme.primary,
+                                    isConnected = true
+                                )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = when (language) {
@@ -312,9 +329,9 @@ fun BuyerTipsScreen(
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = when (language) {
-                                            AppLanguage.AR -> "1. أدخل الفيشة في منفذ السيارة.\n2. افتح الكونتاكت وشغّل المحرك.\n3. اضغط على «فحص أوتوماتيكي» في الصفحة الرئيسية."
-                                            AppLanguage.FR -> "1. Branchez le boîtier sur la prise sous le volant.\n2. Mettez le contact et démarrez le moteur.\n3. Appuyez sur « Scan automatique » sur l'écran d'accueil."
-                                            AppLanguage.EN -> "1. Plug the dongle into the port under the steering wheel.\n2. Turn the key and start the engine.\n3. Tap 'Automatic scan' on the Home screen."
+                                            AppLanguage.AR -> "1. أدخل الفيشة في منفذ السيارة.\n2. افتح الكونتاكت وشغّل المحرك (مع إطفاء المكيف).\n3. اضغط على «فحص أوتوماتيكي» في الصفحة الرئيسية."
+                                            AppLanguage.FR -> "1. Branchez le boîtier sur la prise sous le volant.\n2. Mettez le contact et démarrez le moteur (climatisation éteinte).\n3. Appuyez sur « Scan automatique » sur l'écran d'accueil."
+                                            AppLanguage.EN -> "1. Plug the dongle into the port under the steering wheel.\n2. Turn the key and start the engine (with A/C off).\n3. Tap 'Automatic scan' on the Home screen."
                                         },
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
@@ -360,10 +377,10 @@ fun BuyerTipsScreen(
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
-                            focusedBorderColor = FahsBrand,
-                            unfocusedBorderColor = FahsHairline
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
                         )
                     )
                 }
@@ -374,7 +391,7 @@ fun BuyerTipsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
                         color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, FahsHairline)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -389,7 +406,7 @@ fun BuyerTipsScreen(
                                     Icon(
                                         imageVector = Icons.Default.DirectionsCar,
                                         contentDescription = null,
-                                        tint = FahsBrand,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -404,13 +421,13 @@ fun BuyerTipsScreen(
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = FahsBrandSoft
+                                    color = MaterialTheme.colorScheme.primaryContainer
                                 ) {
                                     Text(
                                         text = car.commonEngines.firstOrNull() ?: "",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = FahsInk,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         maxLines = 1,
                                         softWrap = false,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -428,7 +445,7 @@ fun BuyerTipsScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
 
-                            HorizontalDivider(color = FahsHairline, thickness = 1.dp)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
 
                             Text(
                                 text = when (language) {
@@ -437,7 +454,7 @@ fun BuyerTipsScreen(
                                     AppLanguage.EN -> "OBD port location: ${car.obdPortHintEn}"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = FahsMutedText
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -467,10 +484,10 @@ fun BuyerTipsScreen(
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
-                            focusedBorderColor = FahsBrand,
-                            unfocusedBorderColor = FahsHairline
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
                         )
                     )
                 }
@@ -486,7 +503,7 @@ fun BuyerTipsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
                         color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, FahsHairline)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -520,7 +537,7 @@ fun BuyerTipsScreen(
                             Text(
                                 text = dtc.getExplanation(language),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = FahsMutedText
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -531,7 +548,7 @@ fun BuyerTipsScreen(
                 item {
                     BuyerTipCard(
                         icon = Icons.AutoMirrored.Filled.Assignment,
-                        iconColor = FahsBrand,
+                        iconColor = MaterialTheme.colorScheme.primary,
                         title = Strings.tip1Title(language),
                         content = Strings.tip1Desc(language),
                         actionNotice = when (language) {
@@ -587,7 +604,7 @@ fun BuyerTipsScreen(
                 item {
                     BuyerTipCard(
                         icon = Icons.Default.LocalGasStation,
-                        iconColor = FahsBrand,
+                        iconColor = MaterialTheme.colorScheme.primary,
                         title = when (language) {
                             AppLanguage.AR -> "فحص خزان ونظام سيرغاز (GPL)"
                             AppLanguage.FR -> "Vérification de l'installation Sirghaz (GPL)"
@@ -645,7 +662,7 @@ fun BuyerTipCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, FahsHairline)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -653,7 +670,7 @@ fun BuyerTipCard(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(iconColor.copy(alpha = 0.12f)),
+                        .background(iconColor.copy(alpha = 0.14f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -677,12 +694,12 @@ fun BuyerTipCard(
             Text(
                 text = content,
                 style = MaterialTheme.typography.bodyMedium,
-                color = FahsMutedText
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            HorizontalDivider(color = FahsHairline, thickness = 1.dp)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
 
             Spacer(modifier = Modifier.height(10.dp))
 

@@ -18,13 +18,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Bluetooth
 import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Contrast
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Info
@@ -56,20 +56,19 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.core.i18n.AppLanguage
+import com.example.core.i18n.AppThemeMode
 import com.example.core.i18n.LanguagePreferences
 import com.example.data.repository.ShopSettings
 import com.example.ui.components.SamplePdfReportsShowcaseCard
 import com.example.ui.theme.FahsBrand
-import com.example.ui.theme.FahsBrandSoft
-import com.example.ui.theme.FahsHairline
-import com.example.ui.theme.FahsInk
-import com.example.ui.theme.FahsMutedText
 import com.example.ui.theme.ResultProblemRed
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AccountScreen(
     language: AppLanguage,
+    themeMode: AppThemeMode = AppThemeMode.LIGHT,
+    onSelectThemeMode: (AppThemeMode) -> Unit = {},
     cloudUserEmail: String?,
     cloudUserName: String?,
     isCloudSyncing: Boolean,
@@ -99,6 +98,9 @@ fun AccountScreen(
     if (showDeleteConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             title = {
                 Text(
                     text = when (language) {
@@ -145,7 +147,8 @@ fun AccountScreen(
                             AppLanguage.AR -> "إلغاء"
                             AppLanguage.FR -> "Annuler"
                             AppLanguage.EN -> "Cancel"
-                        }
+                        },
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -175,23 +178,23 @@ fun AccountScreen(
                 )
                 Text(
                     text = when (language) {
-                        AppLanguage.AR -> "اللغة، النسخ الاحتياطي، الفيشة المسجلة، والخصوصية."
-                        AppLanguage.FR -> "Langue, sauvegarde en ligne, boîtier enregistré et confidentialité."
-                        AppLanguage.EN -> "Language, online backup, saved dongle, and privacy."
+                        AppLanguage.AR -> "اللغة، المظهر، النسخ الاحتياطي، الفيشة المسجلة، والخصوصية."
+                        AppLanguage.FR -> "Langue, apparence, sauvegarde en ligne, boîtier enregistré et confidentialité."
+                        AppLanguage.EN -> "Language, appearance, online backup, saved dongle, and privacy."
                     },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = FahsMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        // 1. Language Section
+        // 1. Language & Appearance Section
         item {
             AccountSectionGroup(
                 title = when (language) {
-                    AppLanguage.AR -> "اللغة"
-                    AppLanguage.FR -> "Langue"
-                    AppLanguage.EN -> "Language"
+                    AppLanguage.AR -> "اللغة والمظهر"
+                    AppLanguage.FR -> "Langue et apparence"
+                    AppLanguage.EN -> "Language and appearance"
                 }
             ) {
                 Column(modifier = Modifier.padding(vertical = 12.dp)) {
@@ -202,7 +205,7 @@ fun AccountScreen(
                         Icon(
                             imageVector = Icons.Outlined.Language,
                             contentDescription = null,
-                            tint = FahsInk,
+                            tint = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
@@ -233,7 +236,7 @@ fun AccountScreen(
                                 color = if (isSelected) FahsBrand else MaterialTheme.colorScheme.surface,
                                 border = BorderStroke(
                                     1.dp,
-                                    if (isSelected) FahsBrand else FahsHairline
+                                    if (isSelected) FahsBrand else MaterialTheme.colorScheme.outline
                                 )
                             ) {
                                 Row(
@@ -242,6 +245,83 @@ fun AccountScreen(
                                 ) {
                                     Text(
                                         text = lang.nativeName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Contrast,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = when (language) {
+                                AppLanguage.AR -> "مظهر الشاشة (للإضاءة الخارجية أو الليل)"
+                                AppLanguage.FR -> "Apparence de l'écran"
+                                AppLanguage.EN -> "Screen appearance"
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val modes = listOf(
+                            AppThemeMode.LIGHT to when (language) {
+                                AppLanguage.AR -> "فاتح (موصى به تحت الشمس)"
+                                AppLanguage.FR -> "Clair (extérieur)"
+                                AppLanguage.EN -> "Light (outdoor)"
+                            },
+                            AppThemeMode.DARK to when (language) {
+                                AppLanguage.AR -> "داكن"
+                                AppLanguage.FR -> "Sombre"
+                                AppLanguage.EN -> "Dark"
+                            },
+                            AppThemeMode.SYSTEM to when (language) {
+                                AppLanguage.AR -> "تلقائي (النظام)"
+                                AppLanguage.FR -> "Système"
+                                AppLanguage.EN -> "System"
+                            }
+                        )
+                        modes.forEach { (mode, label) ->
+                            val isSelected = mode == themeMode
+                            Surface(
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .clickable { onSelectThemeMode(mode) }
+                                    .testTag("account_theme_${mode.code}"),
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) FahsBrand else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) FahsBrand else MaterialTheme.colorScheme.outline
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = label,
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                         color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
@@ -287,7 +367,7 @@ fun AccountScreen(
                     testTag = "account_get_dongle_row"
                 )
 
-                HorizontalDivider(color = FahsHairline, thickness = 1.dp)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
 
                 // My dongle (remembered dongle + Forget button)
                 Column(
@@ -303,7 +383,7 @@ fun AccountScreen(
                         Icon(
                             imageVector = Icons.Outlined.Bluetooth,
                             contentDescription = null,
-                            tint = FahsInk,
+                            tint = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.size(20.dp)
                         )
                         Column(modifier = Modifier.weight(1f)) {
@@ -333,7 +413,7 @@ fun AccountScreen(
                                     }
                                 },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = FahsMutedText
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -355,7 +435,7 @@ fun AccountScreen(
                                 .heightIn(min = 48.dp)
                                 .testTag("account_forget_dongle_btn"),
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, FahsHairline)
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                         ) {
                             Text(
                                 text = when (language) {
@@ -363,7 +443,7 @@ fun AccountScreen(
                                     AppLanguage.FR -> "Oublier ce boîtier"
                                     AppLanguage.EN -> "Forget this dongle"
                                 },
-                                color = FahsInk,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -392,7 +472,7 @@ fun AccountScreen(
                         Icon(
                             imageVector = Icons.Outlined.CloudUpload,
                             contentDescription = null,
-                            tint = FahsInk,
+                            tint = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.size(20.dp)
                         )
                         Column(modifier = Modifier.weight(1f)) {
@@ -421,7 +501,7 @@ fun AccountScreen(
                                     }
                                 },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = FahsMutedText
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -458,7 +538,7 @@ fun AccountScreen(
                                 .heightIn(min = 48.dp)
                                 .testTag("account_restore_btn"),
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, FahsHairline)
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                         ) {
                             Text(
                                 text = when (language) {
@@ -500,7 +580,7 @@ fun AccountScreen(
                     testTag = "account_privacy_row"
                 )
 
-                HorizontalDivider(color = FahsHairline, thickness = 1.dp)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
 
                 AccountHairlineRow(
                     icon = Icons.Outlined.Email,
@@ -520,7 +600,7 @@ fun AccountScreen(
                     testTag = "account_contact_row"
                 )
 
-                HorizontalDivider(color = FahsHairline, thickness = 1.dp)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
 
                 AccountHairlineRow(
                     icon = Icons.Outlined.Info,
@@ -629,12 +709,12 @@ private fun AccountSectionGroup(
             text = title,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
-            color = FahsMutedText,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-        HorizontalDivider(color = FahsHairline, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
         content()
-        HorizontalDivider(color = FahsHairline, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
     }
 }
 
@@ -675,14 +755,14 @@ private fun AccountHairlineRow(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = FahsMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
         Icon(
             imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
             contentDescription = null,
-            tint = FahsMutedText,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
     }

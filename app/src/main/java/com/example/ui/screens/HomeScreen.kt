@@ -1,10 +1,10 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -66,10 +65,6 @@ import com.example.ui.components.DongleVectorIllustration
 import com.example.ui.components.StatusBadge
 import com.example.ui.theme.FahsBrand
 import com.example.ui.theme.FahsBrandPressed
-import com.example.ui.theme.FahsBrandSoft
-import com.example.ui.theme.FahsHairline
-import com.example.ui.theme.FahsInk
-import com.example.ui.theme.FahsMutedText
 import com.example.ui.viewmodel.OptionalCarDraft
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -114,6 +109,7 @@ fun HomeScreen(
             onDismissRequest = { activeSheetStep = HomeSheetStep.NONE },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
             shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
             modifier = Modifier.testTag("home_flow_bottom_sheet")
         ) {
@@ -213,7 +209,7 @@ fun HomeScreen(
                 },
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = FahsBrand
+                color = MaterialTheme.colorScheme.primary
             )
 
             // Optional car model link / selected car pill
@@ -224,8 +220,8 @@ fun HomeScreen(
                         .clickable { onChooseOptionalCarModel() }
                         .testTag("choose_car_optional_link"),
                     shape = RoundedCornerShape(24.dp),
-                    color = Color.Transparent,
-                    border = BorderStroke(1.dp, FahsHairline)
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -235,7 +231,7 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.Outlined.DirectionsCar,
                             contentDescription = null,
-                            tint = FahsMutedText,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
@@ -245,8 +241,8 @@ fun HomeScreen(
                                 AppLanguage.EN -> "Choose the car model (optional)"
                             },
                             style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = FahsMutedText
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -257,8 +253,8 @@ fun HomeScreen(
                         .clickable { onChooseOptionalCarModel() }
                         .testTag("selected_optional_car_pill"),
                     shape = RoundedCornerShape(24.dp),
-                    color = FahsBrandSoft,
-                    border = BorderStroke(1.dp, FahsBrand)
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                 ) {
                     Row(
                         modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
@@ -268,14 +264,14 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.Outlined.DirectionsCar,
                             contentDescription = null,
-                            tint = FahsInk,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
                             text = "${optionalCarDraft.brand} ${optionalCarDraft.model}",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
-                            color = FahsInk,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -292,7 +288,7 @@ fun HomeScreen(
                                     AppLanguage.FR -> "Retirer le modèle choisi"
                                     AppLanguage.EN -> "Clear chosen car"
                                 },
-                                tint = FahsInk,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -341,10 +337,10 @@ fun HomeScreen(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     DongleVectorIllustration(
-                        size = 56.dp,
+                        size = 52.dp,
                         strokeColor = Color.White,
                         accentColor = Color(0xFFD7EFE7)
                     )
@@ -385,7 +381,7 @@ fun HomeScreen(
                             AppLanguage.EN -> "Checks the engine computer, stored faults, recently erased codes, temperature, and charging in one tap."
                         },
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Color(0xFFD7EFE7)
+                        color = Color(0xFFE6F4EF)
                     )
                 }
 
@@ -426,7 +422,7 @@ fun HomeScreen(
                 .testTag("start_inspection_button"),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.5.dp, FahsHairline)
+            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)
         ) {
             Column(
                 modifier = Modifier
@@ -442,7 +438,7 @@ fun HomeScreen(
                     },
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = FahsMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Text(
@@ -463,7 +459,7 @@ fun HomeScreen(
                         AppLanguage.EN -> "Paperwork, bodywork, paint, underbody, and road test, question by question."
                     },
                     style = MaterialTheme.typography.bodyLarge,
-                    color = FahsMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Row(
@@ -481,12 +477,12 @@ fun HomeScreen(
                         },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = FahsBrand
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = null,
-                        tint = FahsBrand,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -516,7 +512,7 @@ fun HomeScreen(
                         },
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = FahsBrand,
+                        color = MaterialTheme.colorScheme.primary,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -541,8 +537,8 @@ private fun AskHasDongleSheetContent(
     ) {
         DongleVectorIllustration(
             size = 96.dp,
-            strokeColor = FahsInk,
-            accentColor = FahsBrand
+            strokeColor = MaterialTheme.colorScheme.onSurface,
+            accentColor = MaterialTheme.colorScheme.primary
         )
 
         Text(
@@ -565,7 +561,7 @@ private fun AskHasDongleSheetContent(
                 AppLanguage.EN -> "A small Bluetooth plug that connects under the steering wheel to read the engine computer."
             },
             style = MaterialTheme.typography.bodyLarge,
-            color = FahsMutedText,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
 
@@ -603,7 +599,7 @@ private fun AskHasDongleSheetContent(
                     .height(56.dp)
                     .testTag("has_dongle_no_btn"),
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.5.dp, FahsHairline)
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Text(
                     text = when (language) {
@@ -638,8 +634,8 @@ private fun OfferGetDongleSheetContent(
     ) {
         DongleVectorIllustration(
             size = 84.dp,
-            strokeColor = FahsInk,
-            accentColor = FahsBrand
+            strokeColor = MaterialTheme.colorScheme.onSurface,
+            accentColor = MaterialTheme.colorScheme.primary
         )
 
         Text(
@@ -662,7 +658,7 @@ private fun OfferGetDongleSheetContent(
                 AppLanguage.EN -> "This small plug reads engine faults and checks if fault memory was recently erased in 2 minutes. Price: $priceText with delivery."
             },
             style = MaterialTheme.typography.bodyLarge,
-            color = FahsMutedText,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
 
@@ -700,7 +696,7 @@ private fun OfferGetDongleSheetContent(
                     .height(56.dp)
                     .testTag("offer_dongle_not_now_btn"),
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.5.dp, FahsHairline)
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Text(
                     text = when (language) {
@@ -738,7 +734,7 @@ private fun ManualModePickerSheetContent(
                     .fillMaxWidth()
                     .testTag("no_problem_manual_reassurance_banner"),
                 shape = RoundedCornerShape(14.dp),
-                color = FahsBrandSoft
+                color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Text(
                     text = when (language) {
@@ -748,7 +744,7 @@ private fun ManualModePickerSheetContent(
                     },
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = FahsInk,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.padding(16.dp)
                 )
             }
@@ -790,7 +786,7 @@ private fun ManualModePickerSheetContent(
                     }
                 },
                 style = MaterialTheme.typography.bodyMedium,
-                color = FahsBrand,
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
@@ -800,11 +796,11 @@ private fun ManualModePickerSheetContent(
                     AppLanguage.EN -> "Change"
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = FahsMutedText
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
-        HorizontalDivider(color = FahsHairline, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
 
         // Option 1: Quick Check
         Button(
@@ -852,7 +848,7 @@ private fun ManualModePickerSheetContent(
                 .heightIn(min = 64.dp)
                 .testTag("start_full_manual_btn"),
             shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.5.dp, FahsHairline)
+            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)
         ) {
             Column(
                 modifier = Modifier
@@ -877,7 +873,7 @@ private fun ManualModePickerSheetContent(
                         AppLanguage.EN -> "All inspection points in detail including road test"
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = FahsMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -901,7 +897,7 @@ fun InspectionCardItem(
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, FahsHairline)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -926,7 +922,7 @@ fun InspectionCardItem(
                     Text(
                         text = "${inspection.carGeneration.ifBlank { inspection.carYear.toString() }} · ${inspection.engineDescription.ifBlank { inspection.fuelType }}$plateSuffix",
                         style = MaterialTheme.typography.bodySmall,
-                        color = FahsMutedText,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -975,7 +971,7 @@ fun InspectionCardItem(
                 Text(
                     text = dateStr,
                     style = MaterialTheme.typography.bodySmall,
-                    color = FahsMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

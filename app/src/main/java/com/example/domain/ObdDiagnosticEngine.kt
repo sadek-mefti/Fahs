@@ -91,6 +91,59 @@ enum class EcuVinComparisonChoice {
     COULD_NOT_COMPARE
 }
 
+/**
+ * User answer for the dashboard Check-Engine (MIL) light at key-on (before starting the engine).
+ * Rule #5:
+ * - LIT_UP_NORMAL: "Yes, it lit up" -> normal if MIL is OFF with engine running
+ * - NEVER_LIT_UP: "No, it never lights up" -> Red (serious warning)
+ * - DID_NOT_LOOK: "I did not look" -> shows "Not checked" and does not affect the verdict
+ */
+enum class MilKeyOnUserAnswer {
+    LIT_UP_NORMAL,
+    NEVER_LIT_UP,
+    DID_NOT_LOOK
+}
+
+/**
+ * The 4 plain-language Automatic Scan verdict levels on the dark instrument panel header.
+ */
+enum class AutomaticScanVerdictLevel {
+    /** Green (#1E9E5A): "No problem detected by the scan" */
+    NO_PROBLEM_DETECTED,
+    /** Orange (#E08A00): "Some points to check" */
+    POINTS_TO_CHECK,
+    /** Red (#D43D2F): "Serious warning" */
+    SERIOUS_WARNING,
+    /** Grey (#6E7873): "Incomplete scan" */
+    INCOMPLETE
+}
+
+/**
+ * Approved engine & electronics verdict thresholds kept in one data object
+ * so they can be adjusted easily after mechanic review.
+ */
+object ObdVerdictThresholds {
+    // 1. Engine coolant temperature (°C)
+    const val COOLANT_NORMAL_MIN_C = 75
+    const val COOLANT_NORMAL_MAX_C = 104
+    const val COOLANT_ORANGE_MIN_C = 105
+    const val COOLANT_ORANGE_MAX_C = 111
+    const val COOLANT_RED_MIN_C = 112
+
+    // 2. Engine idle steadiness and warm speed (rpm)
+    const val IDLE_MAX_HALF_SPREAD_RPM = 60 // ±60 rpm variation -> max spread 120 rpm
+    const val WARM_IDLE_MIN_RPM = 550
+    const val WARM_IDLE_MAX_RPM = 1100
+
+    // 3. Charging voltage with engine running (V) — never Red from voltage alone
+    const val CHARGING_VOLT_NORMAL_MIN_V = 13.0
+    const val CHARGING_VOLT_NORMAL_MAX_V = 14.8
+
+    // 4. Fuel mixture (Fuel Trim %) — judge LTFT within ±10%, ignore STFT unless beyond ±25%
+    const val LTFT_NORMAL_MAX_ABS_PERCENT = 10.0
+    const val STFT_EXTREME_MAX_ABS_PERCENT = 25.0
+}
+
 data class DtcInfo(
     val code: String,
     val dtcType: DtcType = DtcType.STORED,
@@ -127,7 +180,7 @@ data class LiveParameterGauge(
     val nameEn: String,
     val valueText: String,
     val normalRangeText: String,
-    val status: String // "GREEN", "ORANGE", "RED", "UNAVAILABLE"
+    val status: String // "GREEN", "ORANGE", "RED", "COLD", "UNAVAILABLE"
 ) {
     fun getName(lang: AppLanguage): String = when (lang) {
         AppLanguage.AR -> nameAr
@@ -168,7 +221,14 @@ data class ObdScanResult(
     val isRecentlyClearedFraudAlert: Boolean = false,
     val supportedPidsCount: Int = 0,
     val rawExchangeLog: List<ObdCommandExchange> = emptyList(),
-    val isSimulated: Boolean = false
+    val isSimulated: Boolean = false,
+    val coolantTempC: Int? = null,
+    val idleRpmAvg: Int? = null,
+    val idleRpmHalfSpread: Int? = null,
+    val chargingVoltageV: Double? = null,
+    val stftPercent: Double? = null,
+    val ltftPercent: Double? = null,
+    val o2SensorVoltageV: Double? = null
 )
 
 /**
@@ -185,9 +245,69 @@ interface ObdTransport {
 object ObdDiagnosticEngine {
 
     fun notAvailableLabel(lang: AppLanguage): String = when (lang) {
-        AppLanguage.AR -> "غير متوفر في هذه السيارة"
-        AppLanguage.FR -> "Non disponible sur cette voiture"
-        AppLanguage.EN -> "Not available on this car"
+        AppLanguage.AR -> "غير متوفر"
+        AppLanguage.FR -> "Non disponible"
+        AppLanguage.EN -> "Not available"
+    }
+
+    /**
+     * Evaluates the overall 4-level Automatic Scan verdict strictly from the 6 approved Verdict Rules:
+     * 1. Engine temperature: normal 75–104 °C, orange 105–111 °C, red >= 112 °C (cold < 75 °C does not block green).
+     * 2. Idle: judge steadiness, not speed. Orange when idle varies by more than ±60 rpm, or warm idle < 550 or > 1,100 rpm.
+     * 3. Charging voltage (engine running): normal 13.0–14.8 V, orange < 13.0 V or > 14.8 V. Never red from voltage alone.
+     * 4. Fuel mixture: judge long-term (LTFT) only: normal within ±10%, orange beyond. Ignore STFT unless beyond ±25%.
+     * 5. Warning light at key-on: "Yes, it lit up" (normal), "No, it never lights up" (Red), "I did not look" (Not checked, does not affect verdict).
+     * 6. A reading the car did not provide never blocks a green verdict; it is shown as "Not available".
+     */
+    fun evaluateAutomaticScanVerdict(
+        scanResult: ObdScanResult,
+        milKeyOnAnswer: MilKeyOnUserAnswer = MilKeyOnUserAnswer.DID_NOT_LOOK,
+        ecuVinComparison: EcuVinComparisonChoice = EcuVinComparisonChoice.COULD_NOT_COMPARE
+    ): AutomaticScanVerdictLevel {
+        if (!scanResult.isCommunicationSuccess) {
+            return AutomaticScanVerdictLevel.INCOMPLETE
+        }
+
+        // Check Red conditions ("Serious warning"):
+        // - Engine warning light commanded ON by ECU (milCommandedOn == true)
+        // - Critical stored/pending/permanent fault codes
+        // - Warning light at key-on never lights up (MilKeyOnUserAnswer.NEVER_LIT_UP)
+        // - Engine temperature >= 112 °C
+        // - ECU VIN compared and marked Different from the registration card
+        val hasCriticalDtc = scanResult.dtcList.any { it.severity == ItemSeverity.CRITICAL }
+        val isMilCommandedOn = scanResult.milCommandedOn == true
+        val isMilBulbMissingAtKeyOn = milKeyOnAnswer == MilKeyOnUserAnswer.NEVER_LIT_UP
+        val tempGaugeStatus = scanResult.liveParameters.firstOrNull { it.id == "temp" }?.status
+        val isOverheatingRed = (scanResult.coolantTempC != null && scanResult.coolantTempC >= ObdVerdictThresholds.COOLANT_RED_MIN_C) ||
+            tempGaugeStatus == "RED"
+        val isVinMismatch = !scanResult.ecuVin.isNullOrBlank() && ecuVinComparison == EcuVinComparisonChoice.DIFFERENT
+
+        if (isMilCommandedOn || hasCriticalDtc || isMilBulbMissingAtKeyOn || isOverheatingRed || isVinMismatch) {
+            return AutomaticScanVerdictLevel.SERIOUS_WARNING
+        }
+
+        // Check Orange conditions ("Some points to check"):
+        // - Any non-critical stored/pending/permanent fault codes
+        // - Faults erased recently (STRONG_WARNING or CANNOT_RULE_OUT)
+        // - Engine temperature 105..111 °C
+        // - Idle unsteady (> ±60 rpm) or warm idle outside 550..1,100 rpm
+        // - Charging voltage outside 13.0..14.8 V (when engine running)
+        // - Fuel mixture LTFT beyond ±10% (or STFT beyond ±25%)
+        val hasAnyDtc = scanResult.dtcList.isNotEmpty() || (scanResult.storedDtcCount != null && scanResult.storedDtcCount > 0)
+        val hasClearedCodesWarning = scanResult.clearedCodesAlertLevel == ClearedCodesAlertLevel.STRONG_WARNING ||
+            scanResult.clearedCodesAlertLevel == ClearedCodesAlertLevel.CANNOT_RULE_OUT
+        val isTempOrange = (scanResult.coolantTempC != null &&
+            scanResult.coolantTempC in ObdVerdictThresholds.COOLANT_ORANGE_MIN_C..ObdVerdictThresholds.COOLANT_ORANGE_MAX_C) ||
+            tempGaugeStatus == "ORANGE"
+        val isRpmOrange = scanResult.liveParameters.firstOrNull { it.id == "rpm" }?.status == "ORANGE"
+        val isVoltOrange = scanResult.liveParameters.firstOrNull { it.id == "volt" }?.status == "ORANGE"
+        val isTrimOrange = scanResult.liveParameters.firstOrNull { it.id == "trim" }?.status.let { it == "ORANGE" || it == "RED" }
+
+        if (hasAnyDtc || hasClearedCodesWarning || isTempOrange || isRpmOrange || isVoltOrange || isTrimOrange) {
+            return AutomaticScanVerdictLevel.POINTS_TO_CHECK
+        }
+
+        return AutomaticScanVerdictLevel.NO_PROBLEM_DETECTED
     }
 
     // Offline trilingual database of common OBD2 trouble codes on the Algerian market
@@ -865,16 +985,23 @@ object ObdDiagnosticEngine {
                 dtcList = emptyList(),
                 freezeFrameSummary = null,
                 liveParameters = listOf(
-                    LiveParameterGauge("temp", "Température Liquide (Coolant)", "حرارة ماء التبريد", "Coolant Temperature", "89 °C", "80 - 98 °C", "GREEN"),
-                    LiveParameterGauge("rpm", "Régime Ralenti (Idle RPM)", "سرعة دوران المحرك (Ralenti)", "Idle Engine Speed", "780 tr/min (Stable ±8)", "680 - 900 tr/min", "GREEN"),
-                    LiveParameterGauge("volt", "Tension Batterie & Alternateur", "فولتية البطارية والدينامو", "Alternator Charging Voltage", "14.1 V", "13.5 - 14.7 V", "GREEN"),
-                    LiveParameterGauge("trim", "Correction Carburant (Fuel Trim)", "تصحيح خليط الوقود (STFT/LTFT)", "Short/Long Fuel Trim", "+1.6 %", "-10% à +10%", "GREEN"),
+                    LiveParameterGauge("temp", "Température du moteur", "حرارة المحرك", "Engine temperature", "89 °C", "75 - 104 °C", "GREEN"),
+                    LiveParameterGauge("rpm", "Ralenti du moteur", "استقرار دوران المحرك", "Engine idle", "780 tr/min (Stable ±8)", "550 - 1100 tr/min", "GREEN"),
+                    LiveParameterGauge("volt", "Batterie et charge", "البطارية والشحن", "Battery and charging", "14.1 V", "13.0 - 14.8 V", "GREEN"),
+                    LiveParameterGauge("trim", "Mélange carburant", "خليط الوقود والهواء", "Fuel mixture", "+1.6 %", "-10% à +10%", "GREEN"),
                     LiveParameterGauge("o2", "Sonde Lambda (O2 Sensor)", "حساس الأكسجين (Sonde Lambda)", "O2 Sensor Activity", "0.68 V", "0.10 - 0.90 V", "GREEN")
                 ),
                 clearedCodesAlertLevel = ClearedCodesAlertLevel.NONE_NORMAL,
                 isRecentlyClearedFraudAlert = false,
                 supportedPidsCount = 18,
-                isSimulated = true
+                isSimulated = true,
+                coolantTempC = 89,
+                idleRpmAvg = 780,
+                idleRpmHalfSpread = 8,
+                chargingVoltageV = 14.1,
+                stftPercent = 0.8,
+                ltftPercent = 1.6,
+                o2SensorVoltageV = 0.68
             )
 
             ObdSimulatorProfile.STORED_FAULTS -> ObdScanResult(
@@ -897,16 +1024,23 @@ object ObdDiagnosticEngine {
                 ),
                 freezeFrameSummary = "P0299 enregistré à 2 640 tr/min, 88 km/h, Température moteur 92°C",
                 liveParameters = listOf(
-                    LiveParameterGauge("temp", "Température Liquide (Coolant)", "حرارة ماء التبريد", "Coolant Temperature", "95 °C", "80 - 98 °C", "GREEN"),
-                    LiveParameterGauge("rpm", "Régime Ralenti (Idle RPM)", "سرعة دوران المحرك (Ralenti)", "Idle Engine Speed", "890 tr/min (Instable ±95)", "680 - 900 tr/min", "ORANGE"),
-                    LiveParameterGauge("volt", "Tension Batterie & Alternateur", "فولتية البطارية والدينامو", "Alternator Charging Voltage", "13.8 V", "13.5 - 14.7 V", "GREEN"),
-                    LiveParameterGauge("trim", "Correction Carburant (Fuel Trim)", "تصحيح خليط الوقود (STFT/LTFT)", "Short/Long Fuel Trim", "+19.5 %", "-10% à +10%", "RED"),
+                    LiveParameterGauge("temp", "Température du moteur", "حرارة المحرك", "Engine temperature", "95 °C", "75 - 104 °C", "GREEN"),
+                    LiveParameterGauge("rpm", "Ralenti du moteur", "استقرار دوران المحرك", "Engine idle", "890 tr/min (Instable ±95)", "550 - 1100 tr/min", "ORANGE"),
+                    LiveParameterGauge("volt", "Batterie et charge", "البطارية والشحن", "Battery and charging", "13.8 V", "13.0 - 14.8 V", "GREEN"),
+                    LiveParameterGauge("trim", "Mélange carburant", "خليط الوقود والهواء", "Fuel mixture", "+14.5 %", "-10% à +10%", "ORANGE"),
                     LiveParameterGauge("o2", "Sonde Lambda (O2 Sensor)", "حساس الأكسجين (Sonde Lambda)", "O2 Sensor Activity", "0.18 V", "0.10 - 0.90 V", "ORANGE")
                 ),
                 clearedCodesAlertLevel = ClearedCodesAlertLevel.NONE_NORMAL,
                 isRecentlyClearedFraudAlert = false,
                 supportedPidsCount = 18,
-                isSimulated = true
+                isSimulated = true,
+                coolantTempC = 95,
+                idleRpmAvg = 890,
+                idleRpmHalfSpread = 95,
+                chargingVoltageV = 13.8,
+                stftPercent = 8.2,
+                ltftPercent = 14.5,
+                o2SensorVoltageV = 0.18
             )
 
             ObdSimulatorProfile.RECENTLY_CLEARED_FRAUD -> ObdScanResult(
@@ -927,15 +1061,22 @@ object ObdDiagnosticEngine {
                 ),
                 freezeFrameSummary = null,
                 liveParameters = listOf(
-                    LiveParameterGauge("temp", "Température Liquide (Coolant)", "حرارة ماء التبريد", "Coolant Temperature", "91 °C", "80 - 98 °C", "GREEN"),
-                    LiveParameterGauge("rpm", "Régime Ralenti (Idle RPM)", "سرعة دوران المحرك (Ralenti)", "Idle Engine Speed", "810 tr/min (Stable ±15)", "680 - 900 tr/min", "GREEN"),
-                    LiveParameterGauge("volt", "Tension Batterie & Alternateur", "فولتية البطارية والدينامو", "Alternator Charging Voltage", "13.9 V", "13.5 - 14.7 V", "GREEN"),
-                    LiveParameterGauge("trim", "Correction Carburant (Fuel Trim)", "تصحيح خليط الوقود (STFT/LTFT)", "Short/Long Fuel Trim", "+11.7 %", "-10% à +10%", "ORANGE")
+                    LiveParameterGauge("temp", "Température du moteur", "حرارة المحرك", "Engine temperature", "91 °C", "75 - 104 °C", "GREEN"),
+                    LiveParameterGauge("rpm", "Ralenti du moteur", "استقرار دوران المحرك", "Engine idle", "810 tr/min (Stable ±15)", "550 - 1100 tr/min", "GREEN"),
+                    LiveParameterGauge("volt", "Batterie et charge", "البطارية والشحن", "Battery and charging", "13.9 V", "13.0 - 14.8 V", "GREEN"),
+                    LiveParameterGauge("trim", "Mélange carburant", "خليط الوقود والهواء", "Fuel mixture", "+11.7 %", "-10% à +10%", "ORANGE")
                 ),
                 clearedCodesAlertLevel = ClearedCodesAlertLevel.STRONG_WARNING,
                 isRecentlyClearedFraudAlert = true,
                 supportedPidsCount = 14,
-                isSimulated = true
+                isSimulated = true,
+                coolantTempC = 91,
+                idleRpmAvg = 810,
+                idleRpmHalfSpread = 15,
+                chargingVoltageV = 13.9,
+                stftPercent = 4.0,
+                ltftPercent = 11.7,
+                o2SensorVoltageV = null
             )
 
             ObdSimulatorProfile.NO_ECU_RESPONSE -> ObdScanResult(
@@ -964,18 +1105,19 @@ object ObdDiagnosticEngine {
 
     /**
      * Executes a full READ-ONLY diagnostic scan over any [ObdTransport].
-     * - Follows the chosen [language] for all progress messages
+     * - Follows the chosen [language] for all progress messages (and reports step index 1..6 via [onStepProgress])
      * - Uses a longer wait (10s) with 1 retry for the initial protocol search on older cars
      * - Queries supported parameters (`0100`, `0120`, `0140`) and requests ONLY supported PIDs
-     * - Samples idle RPM multiple times over a few seconds to judge stability
+     * - Samples idle RPM multiple times over a few seconds to judge steadiness (±60 rpm)
      * - Reads the car's own VIN via Service `09 02` when supported
-     * - Preserves null ("not available") whenever a parameter is unsupported or returns NO DATA
+     * - Preserves null ("Not available") whenever a parameter is unsupported or returns NO DATA
      */
     suspend fun executeRealObdScan(
         transport: ObdTransport,
         expectedVin: String = "",
         language: AppLanguage = AppLanguage.FR,
-        onProgress: (String) -> Unit = {}
+        onProgress: (String) -> Unit = {},
+        onStepProgress: (Int) -> Unit = {}
     ): ObdScanResult {
         val exchangeLog = mutableListOf<ObdCommandExchange>()
 
@@ -994,12 +1136,13 @@ object ObdDiagnosticEngine {
             return raw
         }
 
-        // 1. Adapter Initialization (cope gracefully with commands that return ?)
+        // STEP 1 / 6: Connecting to the engine computer
+        onStepProgress(1)
         onProgress(
             when (language) {
-                AppLanguage.AR -> "جاري تهيئة جهاز الفحص ELM327..."
-                AppLanguage.FR -> "Initialisation du boîtier ELM327..."
-                AppLanguage.EN -> "Initializing ELM327 adapter..."
+                AppLanguage.AR -> "الاتصال بكمبيوتر المحرك..."
+                AppLanguage.FR -> "Connexion au calculateur du moteur..."
+                AppLanguage.EN -> "Connecting to the engine computer..."
             }
         )
         val atzResp = sendLogged("AT Z", timeoutMs = 2500L)
@@ -1022,49 +1165,28 @@ object ObdDiagnosticEngine {
             .trim()
             .ifBlank { "ELM327 OBD2" }
 
-        // Read battery voltage at the OBD2 port via AT RV (supported by the ELM327 chip itself)
-        val voltRaw = sendLogged("AT RV", timeoutMs = 1800L)
-        val parsedVolt = parseBatteryVoltage(voltRaw)
-
-        // 2. First ECU Request: protocol search can take several seconds on older cars (ISO 9141-2 / KWP2000).
+        // First ECU Request: protocol search can take several seconds on older cars (ISO 9141-2 / KWP2000).
         // Use a 10-second timeout, and retry once if the first attempt fails to connect.
-        onProgress(
-            when (language) {
-                AppLanguage.AR -> "البحث عن بروتوكول كمبيوتر السيارة وقراءة الحساسات المدعومة (0100)..."
-                AppLanguage.FR -> "Recherche du protocole calculateur et lecture des paramètres supportés (0100)..."
-                AppLanguage.EN -> "Searching for vehicle protocol and supported parameters (0100)..."
-            }
-        )
         var pid0100Resp = sendLogged("0100", timeoutMs = 10000L)
         var supportedPids = parseSupportedPidsBitmask(pid0100Resp, basePid = 0x00).toMutableSet()
 
         if (supportedPids.isEmpty()) {
-            onProgress(
-                when (language) {
-                    AppLanguage.AR -> "إعادة المحاولة للاتصال بكمبيوتر السيارة (قد يستغرق بضع ثوانٍ في السيارات القديمة)..."
-                    AppLanguage.FR -> "Nouvelle tentative de connexion au calculateur (voitures plus anciennes)..."
-                    AppLanguage.EN -> "Retrying connection to vehicle ECU (older cars may take a few seconds)..."
-                }
-            )
             delay(500L)
             pid0100Resp = sendLogged("0100", timeoutMs = 10000L)
             supportedPids = parseSupportedPidsBitmask(pid0100Resp, basePid = 0x00).toMutableSet()
         }
 
         // Also check 0101 if 0100 succeeded or as a fallback check if 0100 returned nothing
-        onProgress(
-            when (language) {
-                AppLanguage.AR -> "قراءة حالة لمبة المحرك والاختبارات الذاتية (PID 0101)..."
-                AppLanguage.FR -> "Lecture de l'état du voyant moteur et des tests d'émission (PID 0101)..."
-                AppLanguage.EN -> "Reading check-engine light status and readiness monitors (PID 0101)..."
-            }
-        )
         val pid0101Resp = if (supportedPids.isEmpty() || 0x01 in supportedPids) {
             sendLogged("0101", timeoutMs = if (supportedPids.isEmpty()) 8000L else 2500L)
         } else {
             ""
         }
         val pid01Status = parsePid01StatusDetail(pid0101Resp)
+
+        // Read battery voltage at the OBD2 port via AT RV (supported by the ELM327 chip itself)
+        val voltRaw = sendLogged("AT RV", timeoutMs = 1800L)
+        val parsedVolt = parseBatteryVoltage(voltRaw)
 
         // If neither 0100 nor 0101 received any valid OBD2 response from the vehicle ECU:
         if (supportedPids.isEmpty() && pid01Status == null) {
@@ -1073,15 +1195,15 @@ object ObdDiagnosticEngine {
                 listOf(
                     LiveParameterGauge(
                         id = "volt",
-                        nameFr = "Tension prise OBD2 (Batterie)",
-                        nameAr = "فولتية البطارية عبر منفذ OBD2",
-                        nameEn = "OBD2 Port Battery Voltage",
+                        nameFr = "Batterie et charge",
+                        nameAr = "البطارية والشحن",
+                        nameEn = "Battery and charging",
                         valueText = String.format(Locale.US, "%.1f V", parsedVolt),
-                        normalRangeText = "12.3 - 14.7 V",
-                        status = when {
-                            parsedVolt in 12.3..14.7 -> "GREEN"
-                            parsedVolt in 11.8..12.29 || parsedVolt in 14.71..15.1 -> "ORANGE"
-                            else -> "RED"
+                        normalRangeText = "13.0 - 14.8 V",
+                        status = if (parsedVolt in ObdVerdictThresholds.CHARGING_VOLT_NORMAL_MIN_V..ObdVerdictThresholds.CHARGING_VOLT_NORMAL_MAX_V) {
+                            "GREEN"
+                        } else {
+                            "ORANGE"
                         }
                     )
                 )
@@ -1109,7 +1231,8 @@ object ObdDiagnosticEngine {
                 isRecentlyClearedFraudAlert = false,
                 supportedPidsCount = 0,
                 rawExchangeLog = exchangeLog,
-                isSimulated = false
+                isSimulated = false,
+                chargingVoltageV = parsedVolt
             )
         }
 
@@ -1139,12 +1262,13 @@ object ObdDiagnosticEngine {
             else -> null
         }
 
-        // 3. Read Stored (Mode 03), Pending (Mode 07), and Permanent (Mode 0A) Fault Codes
+        // STEP 2 / 6: Reading stored faults (Mode 03, Mode 07, Mode 0A)
+        onStepProgress(2)
         onProgress(
             when (language) {
-                AppLanguage.AR -> "قراءة أكواد الأعطال المسجلة والمؤقتة والدائمة (Modes 03 / 07 / 0A)..."
-                AppLanguage.FR -> "Lecture des codes défauts stockés, en attente et permanents (Modes 03 / 07 / 0A)..."
-                AppLanguage.EN -> "Reading stored, pending, and permanent fault codes (Modes 03 / 07 / 0A)..."
+                AppLanguage.AR -> "قراءة الأعطال المسجلة..."
+                AppLanguage.FR -> "Lecture des défauts enregistrés..."
+                AppLanguage.EN -> "Reading stored faults..."
             }
         )
         val storedDtcs = parseMode03DtcResponse(sendLogged("03", timeoutMs = 3000L), DtcType.STORED, isCanProtocol)
@@ -1152,12 +1276,13 @@ object ObdDiagnosticEngine {
         val permanentDtcs = parseMode03DtcResponse(sendLogged("0A", timeoutMs = 2500L), DtcType.PERMANENT, isCanProtocol)
         val allDtcs = (storedDtcs + pendingDtcs + permanentDtcs).distinctBy { "${it.code}_${it.dtcType}" }
 
-        // 4. Read Cleared-Codes History Parameters ONLY if supported by the car
+        // STEP 3 / 6: Checking if faults were erased recently
+        onStepProgress(3)
         onProgress(
             when (language) {
-                AppLanguage.AR -> "فحص سجل مسح الذاكرة والمسافة المقطوعة منذ آخر مسح..."
-                AppLanguage.FR -> "Vérification de l'historique d'effacement de la mémoire..."
-                AppLanguage.EN -> "Checking distance and warm-ups since codes were last cleared..."
+                AppLanguage.AR -> "التحقق من مسح الأعطال مؤخراً..."
+                AppLanguage.FR -> "Vérification d'un effacement récent..."
+                AppLanguage.EN -> "Checking if faults were erased recently..."
             }
         )
         val distMilKm: Int? = if (0x21 in supportedPids) {
@@ -1176,36 +1301,20 @@ object ObdDiagnosticEngine {
             parseTwoByteDistanceKmOrNull(sendLogged("014E", timeoutMs = 2500L), "4E")
         } else null
 
-        // 5. Read Car's Own Chassis Number (VIN) with Service 09 02 when supported
+        // STEP 4 / 6: Reading engine temperature and idle steadiness
+        onStepProgress(4)
         onProgress(
             when (language) {
-                AppLanguage.AR -> "قراءة رقم الشاسيه المخزن في كمبيوتر السيارة (Service 09 02)..."
-                AppLanguage.FR -> "Lecture du numéro de châssis du calculateur (Service 09 02)..."
-                AppLanguage.EN -> "Reading vehicle chassis number from ECU (Service 09 02)..."
-            }
-        )
-        val mode0900Resp = sendLogged("0900", timeoutMs = 2500L)
-        val mode09Supported = extractAllPidPayloads(mode0900Resp, "49", "00")
-        val supportsPid0902 = mode09Supported.isEmpty() || mode09Supported.any { bytes ->
-            bytes.isNotEmpty() && ((bytes[0] and 0x40) != 0)
-        }
-        val ecuVin: String? = if (supportsPid0902) {
-            parseMode09Vin(sendLogged("0902", timeoutMs = 3500L))
-        } else null
-
-        // 6. Live Engine Readings (requesting ONLY supported parameters)
-        onProgress(
-            when (language) {
-                AppLanguage.AR -> "قراءة حرارة المحرك، استقرار سرعة الدوران (Ralenti) والحساسات الحية..."
-                AppLanguage.FR -> "Lecture de la température, stabilité du ralenti et sondes en direct..."
-                AppLanguage.EN -> "Reading coolant temperature, idle stability, fuel trims, and O2 sensor..."
+                AppLanguage.AR -> "قراءة حرارة المحرك واستقرار الدوران..."
+                AppLanguage.FR -> "Lecture de la température et de la stabilité du ralenti..."
+                AppLanguage.EN -> "Reading engine temperature and idle steadiness..."
             }
         )
         val coolantC: Int? = if (0x05 in supportedPids) {
             parseCoolantTempC(sendLogged("0105", timeoutMs = 2000L))
         } else null
 
-        // Sample idle RPM several times over a few seconds to judge stability
+        // Sample idle RPM several times over a few seconds to judge steadiness
         val rpmSamples = mutableListOf<Int>()
         if (0x0C in supportedPids) {
             val firstRpm = parseRpm(sendLogged("010C", timeoutMs = 2000L))
@@ -1224,6 +1333,7 @@ object ObdDiagnosticEngine {
         }
         val avgRpm: Int? = if (rpmSamples.isNotEmpty()) rpmSamples.average().roundToInt() else null
         val rpmSpread: Int? = if (rpmSamples.size >= 2) (rpmSamples.max() - rpmSamples.min()) else null
+        val rpmHalfSpread: Int? = rpmSpread?.let { it / 2 }
 
         // Short-Term (0106) and Long-Term (0107) Fuel Trims
         val stftPercent: Double? = if (0x06 in supportedPids) {
@@ -1240,10 +1350,61 @@ object ObdDiagnosticEngine {
             else -> null
         }
 
+        // STEP 5 / 6: Checking battery and charging
+        onStepProgress(5)
+        onProgress(
+            when (language) {
+                AppLanguage.AR -> "فحص البطارية والشحن..."
+                AppLanguage.FR -> "Vérification de la batterie et de la charge..."
+                AppLanguage.EN -> "Checking battery and charging..."
+            }
+        )
+
+        // STEP 6 / 6: Reading the chassis number in the computer
+        onStepProgress(6)
+        onProgress(
+            when (language) {
+                AppLanguage.AR -> "قراءة رقم الشاسيه في الكمبيوتر..."
+                AppLanguage.FR -> "Lecture du numéro de châssis dans le calculateur..."
+                AppLanguage.EN -> "Reading the chassis number in the computer..."
+            }
+        )
+        val mode0900Resp = sendLogged("0900", timeoutMs = 2500L)
+        val mode09Supported = extractAllPidPayloads(mode0900Resp, "49", "00")
+        val supportsPid0902 = mode09Supported.isEmpty() || mode09Supported.any { bytes ->
+            bytes.isNotEmpty() && ((bytes[0] and 0x40) != 0)
+        }
+        val ecuVin: String? = if (supportsPid0902) {
+            parseMode09Vin(sendLogged("0902", timeoutMs = 3500L))
+        } else null
+
         val unavailableText = notAvailableLabel(language)
         val engineRunning = (avgRpm ?: 0) > 400
+        val engineWarm = coolantC == null || coolantC >= ObdVerdictThresholds.COOLANT_NORMAL_MIN_C
 
-        // Build Idle RPM text & status with stability check
+        // Rule 1: Engine temperature (normal 75..104 °C, orange 105..111 °C, red >= 112 °C, cold < 75 °C)
+        val (tempValueText, tempStatus) = when {
+            coolantC == null -> unavailableText to "UNAVAILABLE"
+            coolantC < ObdVerdictThresholds.COOLANT_NORMAL_MIN_C -> {
+                val coldLabel = when (language) {
+                    AppLanguage.AR -> "$coolantC °C (المحرك لا يزال بارداً)"
+                    AppLanguage.FR -> "$coolantC °C (Moteur encore froid)"
+                    AppLanguage.EN -> "$coolantC °C (Engine still cold)"
+                }
+                coldLabel to "COLD"
+            }
+            coolantC in ObdVerdictThresholds.COOLANT_NORMAL_MIN_C..ObdVerdictThresholds.COOLANT_NORMAL_MAX_C -> {
+                "$coolantC °C" to "GREEN"
+            }
+            coolantC in ObdVerdictThresholds.COOLANT_ORANGE_MIN_C..ObdVerdictThresholds.COOLANT_ORANGE_MAX_C -> {
+                "$coolantC °C" to "ORANGE"
+            }
+            else -> {
+                "$coolantC °C" to "RED"
+            }
+        }
+
+        // Rule 2: Idle steadiness (judge steadiness ±60 rpm, or warm idle outside 550..1,100 rpm)
         val (rpmValueText, rpmStatus) = when {
             avgRpm == null -> unavailableText to "UNAVAILABLE"
             avgRpm == 0 -> {
@@ -1254,117 +1415,101 @@ object ObdDiagnosticEngine {
                 }
                 stoppedLabel to "ORANGE"
             }
-            rpmSpread != null && rpmSpread > 65 -> {
+            rpmHalfSpread != null && rpmHalfSpread > ObdVerdictThresholds.IDLE_MAX_HALF_SPREAD_RPM -> {
                 val unstableLabel = when (language) {
-                    AppLanguage.AR -> "$avgRpm د/د (متذبذب ±${rpmSpread / 2})"
-                    AppLanguage.FR -> "$avgRpm tr/min (Instable ±${rpmSpread / 2})"
-                    AppLanguage.EN -> "$avgRpm rpm (Unstable ±${rpmSpread / 2})"
+                    AppLanguage.AR -> "$avgRpm د/د (متذبذب ±$rpmHalfSpread)"
+                    AppLanguage.FR -> "$avgRpm tr/min (Instable ±$rpmHalfSpread)"
+                    AppLanguage.EN -> "$avgRpm rpm (Unsteady ±$rpmHalfSpread)"
                 }
                 unstableLabel to "ORANGE"
             }
-            avgRpm in 650..920 -> {
-                val stableSuffix = if (rpmSpread != null) " (±${rpmSpread / 2})" else ""
+            engineWarm && (avgRpm < ObdVerdictThresholds.WARM_IDLE_MIN_RPM || avgRpm > ObdVerdictThresholds.WARM_IDLE_MAX_RPM) -> {
+                val unit = if (language == AppLanguage.AR) "د/د" else if (language == AppLanguage.FR) "tr/min" else "rpm"
+                val spreadPart = if (rpmHalfSpread != null) " (±$rpmHalfSpread)" else ""
+                "$avgRpm $unit$spreadPart" to "ORANGE"
+            }
+            else -> {
+                val stableSuffix = if (rpmHalfSpread != null) " (±$rpmHalfSpread)" else ""
                 val unit = if (language == AppLanguage.AR) "د/د" else if (language == AppLanguage.FR) "tr/min" else "rpm"
                 "$avgRpm $unit$stableSuffix" to "GREEN"
             }
-            else -> {
-                val unit = if (language == AppLanguage.AR) "د/د" else if (language == AppLanguage.FR) "tr/min" else "rpm"
-                "$avgRpm $unit" to "ORANGE"
-            }
         }
 
-        // Build Fuel Trim text & status
-        val primaryTrim = ltftPercent ?: stftPercent
-        val (trimValueText, trimStatus) = if (primaryTrim == null) {
-            unavailableText to "UNAVAILABLE"
-        } else {
-            val formatted = buildString {
-                if (stftPercent != null && ltftPercent != null) {
-                    append(String.format(Locale.US, "ST %+.1f%% / LT %+.1f%%", stftPercent, ltftPercent))
-                } else {
-                    append(String.format(Locale.US, "%+.1f %%", primaryTrim))
-                }
-            }
-            val worstAbs = maxOf(abs(stftPercent ?: 0.0), abs(ltftPercent ?: 0.0))
-            val status = when {
-                worstAbs <= 10.0 -> "GREEN"
-                worstAbs <= 18.0 -> "ORANGE"
-                else -> "RED"
-            }
-            formatted to status
-        }
-
-        // Build O2 Sensor text & status
-        val (o2ValueText, o2Status) = if (o2Voltage == null) {
-            unavailableText to "UNAVAILABLE"
-        } else {
-            val formatted = String.format(Locale.US, "%.2f V", o2Voltage)
-            val status = when {
-                o2Voltage in 0.08..0.92 -> "GREEN"
-                else -> "ORANGE"
-            }
-            formatted to status
-        }
-
-        // Build Battery Voltage text & status with real limits based on whether alternator is charging
+        // Rule 3: Charging voltage, engine running: normal 13.0 to 14.8 V. Orange < 13.0 V or > 14.8 V. Never red from voltage alone.
         val (voltValueText, voltStatus) = if (parsedVolt == null) {
             unavailableText to "UNAVAILABLE"
         } else {
             val formatted = String.format(Locale.US, "%.1f V", parsedVolt)
             val status = if (engineRunning) {
-                when {
-                    parsedVolt in 13.5..14.7 -> "GREEN"
-                    parsedVolt in 12.6..13.49 || parsedVolt in 14.71..15.1 -> "ORANGE"
-                    else -> "RED"
+                if (parsedVolt in ObdVerdictThresholds.CHARGING_VOLT_NORMAL_MIN_V..ObdVerdictThresholds.CHARGING_VOLT_NORMAL_MAX_V) {
+                    "GREEN"
+                } else {
+                    "ORANGE"
                 }
             } else {
-                when {
-                    parsedVolt in 12.3..14.7 -> "GREEN"
-                    parsedVolt in 11.8..12.29 || parsedVolt in 14.71..15.1 -> "ORANGE"
-                    else -> "RED"
-                }
+                // Engine off: normal resting battery >= 12.2 V, never red alone
+                if (parsedVolt in 12.2..14.8) "GREEN" else "ORANGE"
             }
+            formatted to status
+        }
+
+        // Rule 4: Fuel mixture: judge long-term (LTFT) only: normal within ±10%, orange beyond.
+        // Ignore short-term (STFT) unless beyond ±25%.
+        val (trimValueText, trimStatus) = if (ltftPercent == null && stftPercent == null) {
+            unavailableText to "UNAVAILABLE"
+        } else {
+            val formatted = when {
+                ltftPercent != null -> String.format(Locale.US, "%+.1f %%", ltftPercent)
+                else -> String.format(Locale.US, "%+.1f %%", stftPercent ?: 0.0)
+            }
+            val ltftOut = ltftPercent != null && abs(ltftPercent) > ObdVerdictThresholds.LTFT_NORMAL_MAX_ABS_PERCENT
+            val stftExtreme = stftPercent != null && abs(stftPercent) > ObdVerdictThresholds.STFT_EXTREME_MAX_ABS_PERCENT
+            val status = if (ltftOut || stftExtreme) "ORANGE" else "GREEN"
+            formatted to status
+        }
+
+        // O2 Sensor Voltage (kept in mechanic details)
+        val (o2ValueText, o2Status) = if (o2Voltage == null) {
+            unavailableText to "UNAVAILABLE"
+        } else {
+            val formatted = String.format(Locale.US, "%.2f V", o2Voltage)
+            val status = if (o2Voltage in 0.08..0.92) "GREEN" else "ORANGE"
             formatted to status
         }
 
         val liveGauges = listOf(
             LiveParameterGauge(
                 id = "temp",
-                nameFr = "Température Liquide (Coolant)",
-                nameAr = "حرارة ماء التبريد",
-                nameEn = "Coolant Temperature",
-                valueText = if (coolantC != null) "$coolantC °C" else unavailableText,
-                normalRangeText = "80 - 98 °C",
-                status = when {
-                    coolantC == null -> "UNAVAILABLE"
-                    coolantC in 75..99 -> "GREEN"
-                    coolantC > 103 -> "RED"
-                    else -> "ORANGE"
-                }
+                nameFr = "Température du moteur",
+                nameAr = "حرارة المحرك",
+                nameEn = "Engine temperature",
+                valueText = tempValueText,
+                normalRangeText = "${ObdVerdictThresholds.COOLANT_NORMAL_MIN_C} - ${ObdVerdictThresholds.COOLANT_NORMAL_MAX_C} °C",
+                status = tempStatus
             ),
             LiveParameterGauge(
                 id = "rpm",
-                nameFr = "Régime Ralenti (Idle RPM)",
-                nameAr = "سرعة دوران المحرك (Ralenti)",
-                nameEn = "Idle Engine Speed",
+                nameFr = "Ralenti du moteur",
+                nameAr = "استقرار دوران المحرك",
+                nameEn = "Engine idle",
                 valueText = rpmValueText,
-                normalRangeText = "680 - 900 tr/min",
+                normalRangeText = "${ObdVerdictThresholds.WARM_IDLE_MIN_RPM} - ${ObdVerdictThresholds.WARM_IDLE_MAX_RPM} tr/min (±${ObdVerdictThresholds.IDLE_MAX_HALF_SPREAD_RPM})",
                 status = rpmStatus
             ),
             LiveParameterGauge(
                 id = "volt",
-                nameFr = "Tension Batterie & Alternateur",
-                nameAr = "فولتية البطارية والدينامو",
-                nameEn = "Battery & Alternator Voltage",
+                nameFr = "Batterie et charge",
+                nameAr = "البطارية والشحن",
+                nameEn = "Battery and charging",
                 valueText = voltValueText,
-                normalRangeText = if (engineRunning) "13.5 - 14.7 V" else "12.3 - 14.7 V",
+                normalRangeText = "${ObdVerdictThresholds.CHARGING_VOLT_NORMAL_MIN_V} - ${ObdVerdictThresholds.CHARGING_VOLT_NORMAL_MAX_V} V",
                 status = voltStatus
             ),
             LiveParameterGauge(
                 id = "trim",
-                nameFr = "Correction Carburant (Fuel Trim)",
-                nameAr = "تصحيح خليط الوقود (Fuel Trim)",
-                nameEn = "Fuel Trim (STFT / LTFT)",
+                nameFr = "Mélange carburant",
+                nameAr = "خليط الوقود والهواء",
+                nameEn = "Fuel mixture",
                 valueText = trimValueText,
                 normalRangeText = "-10% à +10%",
                 status = trimStatus
@@ -1413,7 +1558,14 @@ object ObdDiagnosticEngine {
             isRecentlyClearedFraudAlert = alertLevel == ClearedCodesAlertLevel.STRONG_WARNING,
             supportedPidsCount = supportedPids.size,
             rawExchangeLog = exchangeLog,
-            isSimulated = false
+            isSimulated = false,
+            coolantTempC = coolantC,
+            idleRpmAvg = avgRpm,
+            idleRpmHalfSpread = rpmHalfSpread,
+            chargingVoltageV = parsedVolt,
+            stftPercent = stftPercent,
+            ltftPercent = ltftPercent,
+            o2SensorVoltageV = o2Voltage
         )
     }
 }

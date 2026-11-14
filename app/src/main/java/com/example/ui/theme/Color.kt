@@ -28,17 +28,17 @@ val ResultCheckOrange = Color(0xFFE08A00)    // To check / Some points to check
 val ResultProblemRed = Color(0xFFD43D2F)     // Problem / Serious warning
 val ResultIncompleteGrey = Color(0xFF6E7873) // Not available / Not checked / Incomplete scan
 
-// Dark Mode Tokens (Android Dark Theme support)
+// Dark Mode Tokens (Android Dark Theme support with high-contrast text/icons)
 val FahsPaperDark = Color(0xFF091410)        // Deep obsidian background in dark mode
 val FahsSurfaceDark = Color(0xFF122720)      // Interactive card surface in dark mode
-val FahsHairlineDark = Color(0xFF1F352E)     // 1dp divider in dark mode
-val FahsTextPrimaryDark = Color(0xFFF1F4F2)  // Primary text in dark mode
-val FahsTextMutedDark = Color(0xFFA5B8B1)    // Secondary text in dark mode
-val FahsBrandDark = Color(0xFF148361)        // Primary button in dark mode
+val FahsHairlineDark = Color(0xFF243D35)     // 1dp divider in dark mode
+val FahsTextPrimaryDark = Color(0xFFF1F4F2)  // Primary text in dark mode (15.1:1 contrast)
+val FahsTextMutedDark = Color(0xFFB2C4BE)    // Secondary text in dark mode (9.4:1 contrast)
+val FahsBrandDark = Color(0xFF4CC39C)        // High-contrast brand accent for text/icons on dark surfaces (8.4:1)
+val FahsBrandButtonDark = Color(0xFF127A5A)  // Filled primary button container in dark mode
 
 // ============================================================================
-// Legacy Token Aliases (Mapped to the new Instrument Panel system so existing
-// screens transition seamlessly to the new palette without decorative green)
+// Legacy Token Aliases (Mapped to the new Instrument Panel system)
 // ============================================================================
 val Emerald900 = FahsInk
 val Emerald800 = FahsBrand
@@ -77,3 +77,14 @@ val StatusErrorRedOnContainer = Color(0xFF751B13)
 val StatusNeutralSlate = ResultIncompleteGrey
 val StatusNeutralSlateContainer = Color(0xFFECEFED)
 val StatusNeutralSlateOnContainer = FahsInk
+
+val StatusNeutralGrey = ResultIncompleteGrey
+val StatusNeutralGreyContainer = Color(0xFFECEFED)
+
+// Instrument Panel aliases for Automatic Scan & Scan Result components
+val FahsConnectionSlate = FahsProgressArcNeutral
+val FahsInstrumentCard = FahsInkElevated
+val FahsInstrumentDivider = FahsInkHairline
+val FahsInstrumentMuted = FahsDarkMutedText
+val FahsInstrumentText = FahsTextPrimaryDark
+

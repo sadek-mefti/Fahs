@@ -56,11 +56,13 @@ fun MainScreen(
     modifier: Modifier = Modifier
 ) {
     val currentLanguage by viewModel.currentLanguage.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
     val preferredQuickMode by viewModel.preferredQuickMode.collectAsStateWithLifecycle()
     val optionalCarDraft by viewModel.optionalCarDraft.collectAsStateWithLifecycle()
     val preselectedBrandFromVin by viewModel.preselectedBrandFromVin.collectAsStateWithLifecycle()
     val carSelectionReturnTab by viewModel.carSelectionReturnTab.collectAsStateWithLifecycle()
+    val autoConnectRememberedDongle by viewModel.autoConnectRememberedDongle.collectAsStateWithLifecycle()
     val inspections by viewModel.inspections.collectAsStateWithLifecycle()
     val activeInspection by viewModel.activeInspection.collectAsStateWithLifecycle()
     val activeInspectionAnswers by viewModel.activeInspectionAnswers.collectAsStateWithLifecycle()
@@ -149,8 +151,15 @@ fun MainScreen(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
+            val navItemColors = NavigationBarItemDefaults.colors(
+                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                selectedTextColor = MaterialTheme.colorScheme.onBackground,
+                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Column(modifier = Modifier.fillMaxWidth()) {
-                HorizontalDivider(color = FahsHairline, thickness = 1.dp)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
                 NavigationBar(
                     modifier = Modifier
                         .navigationBarsPadding()
@@ -183,13 +192,7 @@ fun MainScreen(
                                 fontWeight = if (isHomeSelected) FontWeight.Bold else FontWeight.Medium
                             )
                         },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = FahsInk,
-                            selectedTextColor = FahsInk,
-                            indicatorColor = FahsBrandSoft,
-                            unselectedIconColor = FahsMutedText,
-                            unselectedTextColor = FahsMutedText
-                        )
+                        colors = navItemColors
                     )
 
                     // Tab 2: My reports
@@ -210,13 +213,7 @@ fun MainScreen(
                                 fontWeight = if (isReportsSelected) FontWeight.Bold else FontWeight.Medium
                             )
                         },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = FahsInk,
-                            selectedTextColor = FahsInk,
-                            indicatorColor = FahsBrandSoft,
-                            unselectedIconColor = FahsMutedText,
-                            unselectedTextColor = FahsMutedText
-                        )
+                        colors = navItemColors
                     )
 
                     // Tab 3: Guide (how to use a dongle, where the OBD port is, buyer tips, order a dongle)
@@ -240,13 +237,7 @@ fun MainScreen(
                                 fontWeight = if (selectedTab == NavTab.GUIDE) FontWeight.Bold else FontWeight.Medium
                             )
                         },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = FahsInk,
-                            selectedTextColor = FahsInk,
-                            indicatorColor = FahsBrandSoft,
-                            unselectedIconColor = FahsMutedText,
-                            unselectedTextColor = FahsMutedText
-                        )
+                        colors = navItemColors
                     )
 
                     // Tab 4: Account (sign-in, backup, language, privacy, terms, get a dongle, my dongle, contact, about)
@@ -267,13 +258,7 @@ fun MainScreen(
                                 fontWeight = if (selectedTab == NavTab.ACCOUNT) FontWeight.Bold else FontWeight.Medium
                             )
                         },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = FahsInk,
-                            selectedTextColor = FahsInk,
-                            indicatorColor = FahsBrandSoft,
-                            unselectedIconColor = FahsMutedText,
-                            unselectedTextColor = FahsMutedText
-                        )
+                        colors = navItemColors
                     )
                 }
             }
@@ -535,8 +520,13 @@ fun MainScreen(
                         ObdGuideScreen(
                             language = currentLanguage,
                             activeInspection = activeInspection,
+                            optionalCarDraft = optionalCarDraft,
                             initialScanResult = lastObdScanResult,
                             shopSettings = shopSettings,
+                            autoConnectRememberedDongle = autoConnectRememberedDongle,
+                            onConsumeAutoConnect = {
+                                viewModel.consumeAutoConnectRememberedDongle()
+                            },
                             onOpenDongleBuyingGuide = {
                                 onboardingDialogSection = "DONGLE_GUIDE"
                             },
@@ -547,12 +537,13 @@ fun MainScreen(
                             onDetectedEcuVin = { vin ->
                                 viewModel.setPreselectedBrandFromVin(vin)
                             },
-                            onSaveScanToInspection = { scanResult, milBulbLit, ecuVinComparison ->
+                            onSaveScanToInspection = { scanResult, milBulbLit, ecuVinComparison, milKeyOnAnswer ->
                                 viewModel.saveObdScanToActiveInspection(
                                     scanResult = scanResult,
                                     milBulbLitOnDashboard = milBulbLit,
                                     ecuVinComparison = ecuVinComparison,
-                                    returnToChecklist = false
+                                    returnToChecklist = false,
+                                    milKeyOnAnswer = milKeyOnAnswer
                                 )
                                 scope.launch {
                                     val msg = when (currentLanguage) {
@@ -576,6 +567,13 @@ fun MainScreen(
                                     }
                                     snackbarHostState.showSnackbar(msg)
                                 }
+                            },
+                            onStartThreeMinuteVisualCheck = {
+                                if (activeInspection != null) {
+                                    viewModel.selectTab(NavTab.CHECKLIST_WIZARD)
+                                } else {
+                                    viewModel.startManualInspectionDirectly(isQuickMode = true)
+                                }
                             }
                         )
                     }
@@ -591,6 +589,8 @@ fun MainScreen(
                     NavTab.ACCOUNT -> {
                         AccountScreen(
                             language = currentLanguage,
+                            themeMode = themeMode,
+                            onSelectThemeMode = { mode -> viewModel.setThemeMode(mode) },
                             cloudUserEmail = cloudUserEmail,
                             cloudUserName = cloudUserName,
                             isCloudSyncing = isCloudSyncing,

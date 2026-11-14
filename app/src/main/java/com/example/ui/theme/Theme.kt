@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.view.WindowCompat
 import com.example.core.i18n.AppLanguage
+import com.example.core.i18n.AppThemeMode
 
 private val InstrumentPanelLightColorScheme = lightColorScheme(
     primary = FahsBrand,
@@ -37,8 +38,8 @@ private val InstrumentPanelLightColorScheme = lightColorScheme(
 
 private val InstrumentPanelDarkColorScheme = darkColorScheme(
     primary = FahsBrandDark,
-    onPrimary = Color.White,
-    primaryContainer = FahsInkElevated,
+    onPrimary = FahsInk,
+    primaryContainer = Color(0xFF1B3B30),
     onPrimaryContainer = FahsTextPrimaryDark,
     secondary = FahsProgressArcNeutral,
     onSecondary = FahsInk,
@@ -58,7 +59,12 @@ private val InstrumentPanelDarkColorScheme = darkColorScheme(
 @Composable
 fun FahsTheme(
     language: AppLanguage = AppLanguage.FR,
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: AppThemeMode = AppThemeMode.LIGHT,
+    darkTheme: Boolean = when (themeMode) {
+        AppThemeMode.LIGHT -> false
+        AppThemeMode.DARK -> true
+        AppThemeMode.SYSTEM -> isSystemInDarkTheme()
+    },
     isDarkInstrumentScreen: Boolean = false,
     content: @Composable () -> Unit
 ) {

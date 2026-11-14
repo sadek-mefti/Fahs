@@ -146,3 +146,32 @@ fun getTypography(language: AppLanguage): Typography {
 }
 
 val Typography = getTypography(AppLanguage.FR)
+
+object FahsTypography {
+    val instrumentHeroNumberStyle = TextStyle(
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Bold,
+        fontSize = 36.sp,
+        lineHeight = 42.sp,
+        fontFeatureSettings = "tnum",
+        platformStyle = PlatformTextStyle(includeFontPadding = true)
+    )
+
+    val tabularValueStyle = TextStyle(
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Bold,
+        fontSize = 15.sp,
+        lineHeight = 22.sp,
+        fontFeatureSettings = "tnum",
+        platformStyle = PlatformTextStyle(includeFontPadding = true)
+    )
+
+    val vinMonospaceStyle = TextStyle(
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        fontFeatureSettings = "tnum"
+    )
+}
+

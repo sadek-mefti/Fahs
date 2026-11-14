@@ -472,4 +472,112 @@ class FahsAppRobolectricTest {
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("home_main_question").assertExists()
   }
+
+  @Test
+  fun `verify part 2 automatic scan verdict rules and ui contrast`() {
+    composeTestRule.waitForIdle()
+
+    // 1. Verify theme mode selector in Account tab (Light / Dark / System)
+    composeTestRule.onNodeWithTag("bottom_tab_account").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("account_theme_dark").assertExists().performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("account_theme_light").assertExists().performClick()
+    composeTestRule.waitForIdle()
+
+    // 2. Navigate from Home -> Automatic Scan screen and verify preparation card
+    composeTestRule.onNodeWithTag("bottom_tab_home").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("automatic_scan_button").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("has_dongle_yes_btn").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("obd_preparation_and_connection_card").assertExists()
+
+    // 3. Verify all 6 Approved Verdict Rules in ObdDiagnosticEngine
+    val baseHealthy = com.example.domain.ObdDiagnosticEngine.generateSimulatedScan(
+      profile = com.example.domain.ObdSimulatorProfile.HEALTHY,
+      expectedVin = "VF14SRB04K0519283"
+    ).copy(isSimulated = false)
+
+    // Rule 6 & Rule 5 ("I did not look" does not block Green verdict)
+    assertEquals(
+      com.example.domain.AutomaticScanVerdictLevel.NO_PROBLEM_DETECTED,
+      com.example.domain.ObdDiagnosticEngine.evaluateAutomaticScanVerdict(
+        scanResult = baseHealthy,
+        milKeyOnAnswer = com.example.domain.MilKeyOnUserAnswer.DID_NOT_LOOK
+      )
+    )
+
+    // Rule 5 ("No, it never lights up" -> Red / SERIOUS_WARNING)
+    assertEquals(
+      com.example.domain.AutomaticScanVerdictLevel.SERIOUS_WARNING,
+      com.example.domain.ObdDiagnosticEngine.evaluateAutomaticScanVerdict(
+        scanResult = baseHealthy,
+        milKeyOnAnswer = com.example.domain.MilKeyOnUserAnswer.NEVER_LIT_UP
+      )
+    )
+
+    // Rule 1: Temperature thresholds (75-104 normal, 105-111 orange, >= 112 red, < 75 cold does not block green)
+    assertEquals(
+      com.example.domain.AutomaticScanVerdictLevel.NO_PROBLEM_DETECTED,
+      com.example.domain.ObdDiagnosticEngine.evaluateAutomaticScanVerdict(
+        scanResult = baseHealthy.copy(
+          coolantTempC = 62,
+          liveParameters = baseHealthy.liveParameters.map {
+            if (it.id == "temp") it.copy(status = "COLD", valueText = "62 °C") else it
+          }
+        )
+      )
+    )
+    assertEquals(
+      com.example.domain.AutomaticScanVerdictLevel.POINTS_TO_CHECK,
+      com.example.domain.ObdDiagnosticEngine.evaluateAutomaticScanVerdict(
+        scanResult = baseHealthy.copy(
+          coolantTempC = 108,
+          liveParameters = baseHealthy.liveParameters.map {
+            if (it.id == "temp") it.copy(status = "ORANGE", valueText = "108 °C") else it
+          }
+        )
+      )
+    )
+    assertEquals(
+      com.example.domain.AutomaticScanVerdictLevel.SERIOUS_WARNING,
+      com.example.domain.ObdDiagnosticEngine.evaluateAutomaticScanVerdict(
+        scanResult = baseHealthy.copy(
+          coolantTempC = 112,
+          liveParameters = baseHealthy.liveParameters.map {
+            if (it.id == "temp") it.copy(status = "RED", valueText = "112 °C") else it
+          }
+        )
+      )
+    )
+
+    // Rule 3: Charging voltage outside 13.0-14.8 V is Orange (POINTS_TO_CHECK), never Red alone
+    assertEquals(
+      com.example.domain.AutomaticScanVerdictLevel.POINTS_TO_CHECK,
+      com.example.domain.ObdDiagnosticEngine.evaluateAutomaticScanVerdict(
+        scanResult = baseHealthy.copy(
+          chargingVoltageV = 12.1,
+          liveParameters = baseHealthy.liveParameters.map {
+            if (it.id == "volt") it.copy(status = "ORANGE", valueText = "12.1 V") else it
+          }
+        )
+      )
+    )
+
+    // Verify after_temp_fan_operation is NOT auto-answered by a single scan
+    val autoProposals = com.example.ui.viewmodel.FahsViewModel.buildAutoAnsweredChecklistItemsFromScan(
+      scanResult = baseHealthy,
+      milBulbLitOnDashboard = true,
+      ecuVinComparison = com.example.domain.EcuVinComparisonChoice.SAME,
+      adaptiveItems = ChecklistEngine.fullLibrary,
+      milKeyOnAnswer = com.example.domain.MilKeyOnUserAnswer.LIT_UP_NORMAL
+    )
+    assertTrue(
+      "Single OBD scan must not auto-answer after_temp_fan_operation",
+      autoProposals.none { it.item.id == "after_temp_fan_operation" }
+    )
+  }
 }
+

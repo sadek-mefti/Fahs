@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -66,6 +67,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,21 +77,11 @@ import com.example.core.i18n.Strings
 import com.example.data.local.InspectionEntity
 import com.example.domain.ReportEngine
 import com.example.ui.components.StatusBadge
-import com.example.ui.theme.Emerald100
-import com.example.ui.theme.Emerald600
-import com.example.ui.theme.Emerald700
-import com.example.ui.theme.Emerald800
-import com.example.ui.theme.Emerald900
-import com.example.ui.theme.Slate100
-import com.example.ui.theme.Slate200
-import com.example.ui.theme.Slate400
-import com.example.ui.theme.Slate50
-import com.example.ui.theme.Slate600
-import com.example.ui.theme.Slate700
-import com.example.ui.theme.Slate900
-import com.example.ui.theme.StatusErrorRed
-import com.example.ui.theme.StatusPassGreen
-import com.example.ui.theme.StatusWarningAmber
+import com.example.ui.theme.FahsBrand
+import com.example.ui.theme.FahsInk
+import com.example.ui.theme.ResultCheckOrange
+import com.example.ui.theme.ResultNormalGreen
+import com.example.ui.theme.ResultProblemRed
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -157,13 +149,13 @@ fun SavedInspectionsScreen(
                 Text(
                     text = Strings.delete(language),
                     fontWeight = FontWeight.Bold,
-                    color = StatusErrorRed
+                    color = ResultProblemRed
                 )
             },
             text = {
                 Text(
                     text = Strings.deleteConfirmMsg(language),
-                    color = Slate700
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             confirmButton = {
@@ -179,7 +171,7 @@ fun SavedInspectionsScreen(
                     Text(
                         text = Strings.delete(language),
                         fontWeight = FontWeight.Bold,
-                        color = StatusErrorRed
+                        color = ResultProblemRed
                     )
                 }
             },
@@ -187,11 +179,11 @@ fun SavedInspectionsScreen(
                 TextButton(onClick = { itemToDelete = null }) {
                     Text(
                         text = Strings.cancel(language),
-                        color = Slate600
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             },
-            containerColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -203,21 +195,21 @@ fun SavedInspectionsScreen(
                 Text(
                     text = when (language) {
                         AppLanguage.AR -> "حذف النسخ الاحتياطية السحابية؟"
-                        AppLanguage.FR -> "Supprimer les sauvegardes Cloud ?"
-                        AppLanguage.EN -> "Delete All Cloud Backups?"
+                        AppLanguage.FR -> "Supprimer les sauvegardes en ligne ?"
+                        AppLanguage.EN -> "Delete all cloud backups?"
                     },
                     fontWeight = FontWeight.Bold,
-                    color = StatusErrorRed
+                    color = ResultProblemRed
                 )
             },
             text = {
                 Text(
                     text = when (language) {
                         AppLanguage.AR -> "سيتم حذف جميع الفحوصات المحفوظة في مساحتك السحابية نهائياً. ستبقى الفحوصات المحفوظة داخل هاتفك كما هي."
-                        AppLanguage.FR -> "Toutes les inspections enregistrées dans votre espace Cloud seront supprimées définitivement. Vos inspections locales sur ce téléphone seront conservées."
-                        AppLanguage.EN -> "All inspections stored in your Cloud backup will be permanently deleted. Your local inspections on this phone will remain untouched."
+                        AppLanguage.FR -> "Toutes les inspections enregistrées dans votre espace en ligne seront supprimées définitivement. Vos inspections locales sur ce téléphone seront conservées."
+                        AppLanguage.EN -> "All inspections stored in your online backup will be permanently deleted. Your local inspections on this phone will remain untouched."
                     },
-                    color = Slate700
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             confirmButton = {
@@ -231,7 +223,7 @@ fun SavedInspectionsScreen(
                     Text(
                         text = Strings.delete(language),
                         fontWeight = FontWeight.Bold,
-                        color = StatusErrorRed
+                        color = ResultProblemRed
                     )
                 }
             },
@@ -239,11 +231,11 @@ fun SavedInspectionsScreen(
                 TextButton(onClick = { showDeleteCloudConfirm = false }) {
                     Text(
                         text = Strings.cancel(language),
-                        color = Slate600
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             },
-            containerColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(16.dp)
         )
     }
@@ -251,12 +243,12 @@ fun SavedInspectionsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Slate50)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Sticky Comparison Action Bar when at least 1 car is selected
         if (selectedForComparison.isNotEmpty()) {
             Surface(
-                color = Emerald800,
+                color = FahsBrand,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -292,7 +284,7 @@ fun SavedInspectionsScreen(
                                 }
                             },
                             style = MaterialTheme.typography.bodySmall,
-                            color = Emerald100
+                            color = Color(0xFFD7EFE7)
                         )
                     }
 
@@ -306,7 +298,7 @@ fun SavedInspectionsScreen(
                                     AppLanguage.FR -> "Vider"
                                     AppLanguage.EN -> "Clear"
                                 },
-                                color = Emerald100
+                                color = Color(0xFFD7EFE7)
                             )
                         }
 
@@ -315,7 +307,7 @@ fun SavedInspectionsScreen(
                                 onClick = { showComparisonDialog = true },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color.White,
-                                    contentColor = Emerald900
+                                    contentColor = FahsInk
                                 ),
                                 shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
@@ -344,57 +336,31 @@ fun SavedInspectionsScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 1. Optional Google Cloud Backup & Restore Card
+            // Screen Title Header
             item {
-                OptionalCloudBackupCard(
-                    language = language,
-                    cloudUserEmail = cloudUserEmail,
-                    cloudUserName = cloudUserName,
-                    isCloudSyncing = isCloudSyncing,
-                    onSignInClick = {
-                        GoogleAuthHelper.onGoogleSignInClicked(
-                            context = context,
-                            credentialManager = credentialManager,
-                            onAuthSuccess = {
-                                onRefreshAuth()
-                                val msg = when (language) {
-                                    AppLanguage.AR -> "تم تسجيل الدخول بحساب Google بنجاح"
-                                    AppLanguage.FR -> "Connecté avec Google avec succès"
-                                    AppLanguage.EN -> "Signed in with Google"
-                                }
-                                onNotifyMessage(msg)
-                            },
-                            onAuthError = { err ->
-                                onNotifyMessage(err)
-                            },
-                            scope = coroutineScope
-                        )
-                    },
-                    onSignOutClick = {
-                        GoogleAuthHelper.signOut(
-                            credentialManager = credentialManager,
-                            scope = coroutineScope,
-                            onSignOutComplete = {
-                                onRefreshAuth()
-                                val msg = when (language) {
-                                    AppLanguage.AR -> "تم تسجيل الخروج من الحساب السحابي"
-                                    AppLanguage.FR -> "Déconnecté du compte Cloud"
-                                    AppLanguage.EN -> "Signed out of Cloud account"
-                                }
-                                onNotifyMessage(msg)
-                            }
-                        )
-                    },
-                    onBackupClick = onBackupToCloud,
-                    onRestoreClick = onRestoreFromCloud,
-                    onDeleteCloudBackupsClick = { showDeleteCloudConfirm = true }
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = Strings.navInspections(language),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = when (language) {
+                            AppLanguage.AR -> "جميع عمليات الفحص الأوتوماتيكي واليدوي المحفوظة على هاتفك."
+                            AppLanguage.FR -> "Tous vos scans automatiques et inspections manuelles enregistrés sur ce téléphone."
+                            AppLanguage.EN -> "All automatic scans and manual inspections saved on your phone."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
-            // 2. Filter Chips + Compare Helper Row
+            // Filter Chips + Compare Helper Row
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
@@ -408,8 +374,16 @@ fun SavedInspectionsScreen(
                             onClick = { selectedFilter = "ALL" },
                             label = { Text("${Strings.viewAll(language)} (${inspections.size})") },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Emerald700,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                selectedContainerColor = FahsBrand,
                                 selectedLabelColor = Color.White
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedFilter == "ALL",
+                                borderColor = MaterialTheme.colorScheme.outline,
+                                selectedBorderColor = FahsBrand
                             )
                         )
                         FilterChip(
@@ -417,8 +391,16 @@ fun SavedInspectionsScreen(
                             onClick = { selectedFilter = "IN_PROGRESS" },
                             label = { Text(Strings.statusInProgress(language)) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = StatusWarningAmber,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                selectedContainerColor = ResultCheckOrange,
                                 selectedLabelColor = Color.White
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedFilter == "IN_PROGRESS",
+                                borderColor = MaterialTheme.colorScheme.outline,
+                                selectedBorderColor = ResultCheckOrange
                             )
                         )
                         FilterChip(
@@ -426,8 +408,16 @@ fun SavedInspectionsScreen(
                             onClick = { selectedFilter = "COMPLETED" },
                             label = { Text(Strings.statusCompleted(language)) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = StatusPassGreen,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                labelColor = MaterialTheme.colorScheme.onSurface,
+                                selectedContainerColor = ResultNormalGreen,
                                 selectedLabelColor = Color.White
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedFilter == "COMPLETED",
+                                borderColor = MaterialTheme.colorScheme.outline,
+                                selectedBorderColor = ResultNormalGreen
                             )
                         )
                     }
@@ -436,7 +426,7 @@ fun SavedInspectionsScreen(
                     if (inspections.size >= 2 && selectedForComparison.isEmpty()) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = Emerald100.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -446,7 +436,7 @@ fun SavedInspectionsScreen(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.CompareArrows,
                                     contentDescription = null,
-                                    tint = Emerald800,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -457,7 +447,7 @@ fun SavedInspectionsScreen(
                                         AppLanguage.EN -> "Tip: Tap 'Compare' on 2 or 3 cars below to compare them side by side."
                                     },
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Emerald900,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -468,12 +458,13 @@ fun SavedInspectionsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("seed_comparison_demo_btn"),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.CompareArrows,
                                 contentDescription = null,
-                                tint = Emerald700,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -481,9 +472,9 @@ fun SavedInspectionsScreen(
                                 text = when (language) {
                                     AppLanguage.AR -> "[وضع المطور] إضافة سيارتين نموذجيتين لتجربة المقارنة"
                                     AppLanguage.FR -> "[DEV] Charger 2 voitures d'exemple pour tester le comparateur"
-                                    AppLanguage.EN -> "[DEV] Load 2 sample cars to test Side-by-Side Comparison"
+                                    AppLanguage.EN -> "[DEV] Load 2 sample cars to test side-by-side comparison"
                                 },
-                                color = Emerald800,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.labelMedium
                             )
@@ -497,7 +488,7 @@ fun SavedInspectionsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 36.dp),
+                            .padding(vertical = 32.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
@@ -508,13 +499,13 @@ fun SavedInspectionsScreen(
                                 modifier = Modifier
                                     .size(72.dp)
                                     .clip(CircleShape)
-                                    .background(Emerald100),
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.DirectionsCar,
                                     contentDescription = null,
-                                    tint = Emerald700,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(38.dp)
                                 )
                             }
@@ -525,7 +516,8 @@ fun SavedInspectionsScreen(
                                 text = Strings.noInspectionsYet(language),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = Slate900
+                                color = MaterialTheme.colorScheme.onBackground,
+                                textAlign = TextAlign.Center
                             )
 
                             Spacer(modifier = Modifier.height(6.dp))
@@ -533,7 +525,8 @@ fun SavedInspectionsScreen(
                             Text(
                                 text = Strings.noInspectionsDesc(language),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Slate600,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
                                 lineHeight = 20.sp
                             )
 
@@ -541,14 +534,15 @@ fun SavedInspectionsScreen(
 
                             Button(
                                 onClick = onStartNewInspection,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = FahsBrand)
                             ) {
-                                Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                                Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Color.White)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = Strings.startInspectionTitle(language),
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
                                 )
                             }
                         }
@@ -583,6 +577,53 @@ fun SavedInspectionsScreen(
                     )
                 }
             }
+
+            // Quiet Cloud Backup Card at the bottom of My reports
+            item {
+                OptionalCloudBackupCard(
+                    language = language,
+                    cloudUserEmail = cloudUserEmail,
+                    cloudUserName = cloudUserName,
+                    isCloudSyncing = isCloudSyncing,
+                    onSignInClick = {
+                        GoogleAuthHelper.onGoogleSignInClicked(
+                            context = context,
+                            credentialManager = credentialManager,
+                            onAuthSuccess = {
+                                onRefreshAuth()
+                                val msg = when (language) {
+                                    AppLanguage.AR -> "تم تسجيل الدخول بحساب Google بنجاح"
+                                    AppLanguage.FR -> "Connecté avec Google avec succès"
+                                    AppLanguage.EN -> "Signed in with Google"
+                                }
+                                onNotifyMessage(msg)
+                            },
+                            onAuthError = { err ->
+                                onNotifyMessage(err)
+                            },
+                            scope = coroutineScope
+                        )
+                    },
+                    onSignOutClick = {
+                        GoogleAuthHelper.signOut(
+                            credentialManager = credentialManager,
+                            scope = coroutineScope,
+                            onSignOutComplete = {
+                                onRefreshAuth()
+                                val msg = when (language) {
+                                    AppLanguage.AR -> "تم تسجيل الخروج من الحساب السحابي"
+                                    AppLanguage.FR -> "Déconnecté du compte en ligne"
+                                    AppLanguage.EN -> "Signed out of online account"
+                                }
+                                onNotifyMessage(msg)
+                            }
+                        )
+                    },
+                    onBackupClick = onBackupToCloud,
+                    onRestoreClick = onRestoreFromCloud,
+                    onDeleteCloudBackupsClick = { showDeleteCloudConfirm = true }
+                )
+            }
         }
     }
 }
@@ -599,16 +640,16 @@ private fun OptionalCloudBackupCard(
     onRestoreClick: () -> Unit,
     onDeleteCloudBackupsClick: () -> Unit = {}
 ) {
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("optional_cloud_backup_card"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
@@ -626,13 +667,13 @@ private fun OptionalCloudBackupCard(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (cloudUserEmail != null) Emerald100 else Slate100),
+                            .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = if (cloudUserEmail != null) Icons.Default.CloudDone else Icons.Default.CloudQueue,
                             contentDescription = null,
-                            tint = if (cloudUserEmail != null) Emerald700 else Slate600,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -641,12 +682,12 @@ private fun OptionalCloudBackupCard(
                         Text(
                             text = when (language) {
                                 AppLanguage.AR -> "النسخ الاحتياطي السحابي (اختياري)"
-                                AppLanguage.FR -> "Sauvegarde Cloud (Optionnelle)"
-                                AppLanguage.EN -> "Cloud Backup (Optional)"
+                                AppLanguage.FR -> "Sauvegarde en ligne (optionnelle)"
+                                AppLanguage.EN -> "Online backup (optional)"
                             },
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = Slate900
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = if (cloudUserEmail != null) {
@@ -654,12 +695,12 @@ private fun OptionalCloudBackupCard(
                             } else {
                                 when (language) {
                                     AppLanguage.AR -> "التطبيق يعمل 100% بدون إنترنت أو حساب. سجل الدخول لحفظ فحوصاتك."
-                                    AppLanguage.FR -> "100% utilisable sans compte. Connectez-vous pour sauvegarder vos rapports."
+                                    AppLanguage.FR -> "100% utilisable hors ligne sans compte. Connectez-vous pour sauvegarder vos rapports."
                                     AppLanguage.EN -> "100% usable offline without an account. Sign in to back up inspections."
                                 }
                             },
                             style = MaterialTheme.typography.bodySmall,
-                            color = Slate600
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -668,7 +709,7 @@ private fun OptionalCloudBackupCard(
                     CircularProgressIndicator(
                         modifier = Modifier.size(22.dp),
                         strokeWidth = 2.5.dp,
-                        color = Emerald700
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -680,21 +721,23 @@ private fun OptionalCloudBackupCard(
                         .fillMaxWidth()
                         .testTag("google_sign_in_btn"),
                     shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                    colors = ButtonDefaults.buttonColors(containerColor = FahsBrand)
                 ) {
                     Icon(
                         imageVector = Icons.Default.CloudQueue,
                         contentDescription = null,
+                        tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = when (language) {
                             AppLanguage.AR -> "تسجيل الدخول عبر Google للنسخ الاحتياطي"
-                            AppLanguage.FR -> "Se connecter avec Google (Sauvegarde Cloud)"
-                            AppLanguage.EN -> "Sign in with Google (Cloud Backup)"
+                            AppLanguage.FR -> "Se connecter avec Google (sauvegarde)"
+                            AppLanguage.EN -> "Sign in with Google (backup)"
                         },
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
             } else {
@@ -710,12 +753,13 @@ private fun OptionalCloudBackupCard(
                             .weight(1f)
                             .testTag("cloud_backup_btn"),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
+                        colors = ButtonDefaults.buttonColors(containerColor = FahsBrand),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.CloudUpload,
                             contentDescription = null,
+                            tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -723,10 +767,11 @@ private fun OptionalCloudBackupCard(
                             text = when (language) {
                                 AppLanguage.AR -> "حفظ سحابي"
                                 AppLanguage.FR -> "Sauvegarder"
-                                AppLanguage.EN -> "Back Up"
+                                AppLanguage.EN -> "Back up"
                             },
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
 
@@ -737,12 +782,13 @@ private fun OptionalCloudBackupCard(
                             .weight(1f)
                             .testTag("cloud_restore_btn"),
                         shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.CloudDownload,
                             contentDescription = null,
-                            tint = Emerald800,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -754,7 +800,7 @@ private fun OptionalCloudBackupCard(
                             },
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Emerald800
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
 
@@ -768,7 +814,7 @@ private fun OptionalCloudBackupCard(
                         Icon(
                             imageVector = Icons.Default.DeleteOutline,
                             contentDescription = "Delete Cloud Backups",
-                            tint = StatusErrorRed.copy(alpha = 0.85f),
+                            tint = ResultProblemRed,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -783,7 +829,7 @@ private fun OptionalCloudBackupCard(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Logout,
                             contentDescription = "Sign Out",
-                            tint = Slate600,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -813,15 +859,15 @@ fun SavedInspectionDetailedCard(
         modifier = modifier
             .fillMaxWidth()
             .border(
-                width = if (isSelectedForCompare) 2.dp else 0.dp,
-                color = if (isSelectedForCompare) Emerald600 else Color.Transparent,
+                width = if (isSelectedForCompare) 2.dp else 1.dp,
+                color = if (isSelectedForCompare) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(16.dp)
             )
             .clickable { onClick() }
             .testTag("saved_inspection_${inspection.id}"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelectedForCompare) 3.dp else 1.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header Row: Brand/Model & Status
@@ -836,18 +882,18 @@ fun SavedInspectionDetailedCard(
                         .padding(end = 8.dp)
                 ) {
                     Text(
-                        text = "${inspection.carBrand} ${inspection.carModel}",
+                        text = "${inspection.carBrand} ${inspection.carModel}".trim(),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Slate900,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    val plateSuffix = if (inspection.plateNumber.isNotBlank()) " • ${inspection.plateNumber}" else ""
+                    val plateSuffix = if (inspection.plateNumber.isNotBlank()) " · ${inspection.plateNumber}" else ""
                     Text(
-                        text = "${inspection.carGeneration} • ${inspection.carYear}$plateSuffix",
+                        text = "${inspection.carGeneration} · ${inspection.carYear}$plateSuffix",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Slate600,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -872,12 +918,12 @@ fun SavedInspectionDetailedCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = Slate100
+                        color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Text(
                             text = inspection.fuelType,
                             style = MaterialTheme.typography.labelSmall,
-                            color = Slate700,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             softWrap = false,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -885,12 +931,12 @@ fun SavedInspectionDetailedCard(
                     }
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = Slate100
+                        color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Text(
                             text = inspection.gearboxType,
                             style = MaterialTheme.typography.labelSmall,
-                            color = Slate700,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             softWrap = false,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -898,13 +944,13 @@ fun SavedInspectionDetailedCard(
                     }
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = Emerald100
+                        color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Text(
                             text = inspection.inspectionMode,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = Emerald900,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                             maxLines = 1,
                             softWrap = false,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -915,7 +961,7 @@ fun SavedInspectionDetailedCard(
                 // Compare Selection Chip
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = if (isSelectedForCompare) Emerald700 else Slate100,
+                    color = if (isSelectedForCompare) FahsBrand else MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onToggleCompare() }
@@ -928,7 +974,7 @@ fun SavedInspectionDetailedCard(
                         Icon(
                             imageVector = if (isSelectedForCompare) Icons.Default.Check else Icons.AutoMirrored.Filled.CompareArrows,
                             contentDescription = null,
-                            tint = if (isSelectedForCompare) Color.White else Slate700,
+                            tint = if (isSelectedForCompare) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -940,7 +986,7 @@ fun SavedInspectionDetailedCard(
                             },
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSelectedForCompare) Color.White else Slate700,
+                            color = if (isSelectedForCompare) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -963,20 +1009,20 @@ fun SavedInspectionDetailedCard(
                 ) {
                     Text(
                         text = when (language) {
-                            AppLanguage.AR -> "الإجابات: ${inspection.answeredQuestions}/${inspection.totalQuestions} • المشاكل: ${inspection.problemCount}"
-                            AppLanguage.FR -> "Réponses : ${inspection.answeredQuestions}/${inspection.totalQuestions} • Défauts : ${inspection.problemCount}"
-                            AppLanguage.EN -> "Answered: ${inspection.answeredQuestions}/${inspection.totalQuestions} • Defects: ${inspection.problemCount}"
+                            AppLanguage.AR -> "الإجابات: ${inspection.answeredQuestions}/${inspection.totalQuestions} · المشاكل: ${inspection.problemCount}"
+                            AppLanguage.FR -> "Réponses : ${inspection.answeredQuestions}/${inspection.totalQuestions} · Défauts : ${inspection.problemCount}"
+                            AppLanguage.EN -> "Answered: ${inspection.answeredQuestions}/${inspection.totalQuestions} · Defects: ${inspection.problemCount}"
                         },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (inspection.problemCount > 0) StatusWarningAmber else Slate600
+                        color = if (inspection.problemCount > 0) ResultCheckOrange else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (inspection.userQuotedRepairDzd > 0) {
                         Text(
                             text = ReportEngine.formatAlgerianCurrency(inspection.userQuotedRepairDzd, language),
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Medium,
-                            color = Slate700
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -989,9 +1035,9 @@ fun SavedInspectionDetailedCard(
                         maxLines = 1,
                         softWrap = false,
                         color = when {
-                            inspection.overallScore >= 78 -> StatusPassGreen
-                            inspection.overallScore >= 50 -> StatusWarningAmber
-                            else -> StatusErrorRed
+                            inspection.overallScore >= 78 -> ResultNormalGreen
+                            inspection.overallScore >= 50 -> ResultCheckOrange
+                            else -> ResultProblemRed
                         }
                     )
                 }
@@ -1008,7 +1054,7 @@ fun SavedInspectionDetailedCard(
                 Text(
                     text = dateFormatted,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Slate400
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1021,7 +1067,7 @@ fun SavedInspectionDetailedCard(
                         Icon(
                             imageVector = Icons.Default.ContentCopy,
                             contentDescription = "Duplicate",
-                            tint = Slate600,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -1035,7 +1081,7 @@ fun SavedInspectionDetailedCard(
                         Icon(
                             imageVector = Icons.Default.DeleteOutline,
                             contentDescription = "Delete",
-                            tint = StatusErrorRed.copy(alpha = 0.8f),
+                            tint = ResultProblemRed,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1046,7 +1092,7 @@ fun SavedInspectionDetailedCard(
                         onClick = onClick,
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isCompleted) Emerald700 else StatusWarningAmber
+                            containerColor = if (isCompleted) FahsBrand else ResultCheckOrange
                         ),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         modifier = Modifier.height(34.dp)
@@ -1054,13 +1100,15 @@ fun SavedInspectionDetailedCard(
                         Icon(
                             imageVector = if (isCompleted) Icons.Default.Visibility else Icons.Default.PlayArrow,
                             contentDescription = null,
+                            tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = if (isCompleted) Strings.viewReport(language) else Strings.resumeInspection(language),
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
                 }

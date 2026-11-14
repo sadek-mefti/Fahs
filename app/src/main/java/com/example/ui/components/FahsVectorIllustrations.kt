@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.MaterialTheme
 import com.example.ui.theme.FahsBrand
 import com.example.ui.theme.FahsInk
 
@@ -54,8 +55,8 @@ fun rememberAnimationsEnabled(): Boolean {
 fun DongleVectorIllustration(
     modifier: Modifier = Modifier,
     size: Dp = 88.dp,
-    strokeColor: Color = FahsInk,
-    accentColor: Color = FahsBrand,
+    strokeColor: Color = MaterialTheme.colorScheme.onSurface,
+    accentColor: Color = MaterialTheme.colorScheme.primary,
     isPulsing: Boolean = false,
     isConnected: Boolean = false
 ) {
@@ -190,9 +191,11 @@ fun DongleVectorIllustration(
 fun ObdPortUnderSteeringVectorIllustration(
     modifier: Modifier = Modifier,
     size: Dp = 96.dp,
-    strokeColor: Color = FahsInk,
-    accentColor: Color = FahsBrand
+    strokeColor: Color = MaterialTheme.colorScheme.onSurface,
+    accentColor: Color = MaterialTheme.colorScheme.primary,
+    highlightColor: Color = accentColor
 ) {
+    val effectiveAccent = highlightColor
     Canvas(modifier = modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
@@ -229,7 +232,7 @@ fun ObdPortUnderSteeringVectorIllustration(
         val portCx = w * 0.32f
         val portCy = h * 0.68f
         drawCircle(
-            color = accentColor.copy(alpha = 0.15f),
+            color = effectiveAccent.copy(alpha = 0.15f),
             radius = w * 0.15f,
             center = Offset(portCx, portCy)
         )
@@ -240,7 +243,7 @@ fun ObdPortUnderSteeringVectorIllustration(
             lineTo(portCx - w * 0.07f, portCy + h * 0.05f)
             close()
         }
-        drawPath(path = portPath, color = accentColor, style = stroke)
+        drawPath(path = portPath, color = effectiveAccent, style = stroke)
 
         // Two pedals at bottom right for spatial reference
         drawRoundRect(
@@ -267,7 +270,8 @@ fun ObdPortUnderSteeringVectorIllustration(
 fun EngineWarningLightVectorIllustration(
     modifier: Modifier = Modifier,
     size: Dp = 64.dp,
-    strokeColor: Color = FahsInk
+    strokeColor: Color = MaterialTheme.colorScheme.onSurface,
+    accentColor: Color = strokeColor
 ) {
     Canvas(modifier = modifier.size(size)) {
         val w = this.size.width
@@ -287,7 +291,7 @@ fun EngineWarningLightVectorIllustration(
             lineTo(w * 0.24f, h * 0.62f)
             close()
         }
-        drawPath(path = path, color = strokeColor, style = stroke)
+        drawPath(path = path, color = accentColor, style = stroke)
 
         // Top filler cap T-bar
         drawLine(

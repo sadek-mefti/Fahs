@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.core.i18n.AppLanguage
+import com.example.core.i18n.AppThemeMode
 import com.example.core.i18n.LanguagePreferences
 import com.example.data.local.AppDatabase
 import com.example.data.local.ChecklistAnswerEntity
@@ -15,6 +16,7 @@ import com.example.data.repository.ShopSettings
 import com.example.data.repository.ShopSettingsRepository
 import com.example.domain.ChecklistEngine
 import com.example.domain.EcuVinComparisonChoice
+import com.example.domain.MilKeyOnUserAnswer
 import com.example.domain.ObdScanResult
 import com.example.domain.TestDriveMonitoringSummary
 import com.google.firebase.auth.FirebaseAuth
@@ -72,6 +74,11 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
         LanguagePreferences.getInitialLanguage(application)
     )
     val currentLanguage: StateFlow<AppLanguage> = _currentLanguage.asStateFlow()
+
+    private val _themeMode = MutableStateFlow(
+        LanguagePreferences.getThemeMode(application)
+    )
+    val themeMode: StateFlow<AppThemeMode> = _themeMode.asStateFlow()
 
     private val _isDeveloperModeEnabled = MutableStateFlow(
         LanguagePreferences.isDeveloperModeEnabled(application)
@@ -167,6 +174,11 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
     fun setDeveloperModeEnabled(enabled: Boolean) {
         _isDeveloperModeEnabled.value = enabled
         LanguagePreferences.setDeveloperModeEnabled(getApplication(), enabled)
+    }
+
+    fun setThemeMode(mode: AppThemeMode) {
+        _themeMode.value = mode
+        LanguagePreferences.saveThemeMode(getApplication(), mode)
     }
 
     fun refreshAuthState() {
@@ -445,6 +457,10 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun consumeAutoConnectRememberedDongleFlag() {
+        _autoConnectRememberedDongle.value = false
+    }
+
+    fun consumeAutoConnectRememberedDongle() {
         _autoConnectRememberedDongle.value = false
     }
 
@@ -913,40 +929,50 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         /**
-         * Phase 7 (Item 1): Determines which checklist items can be automatically answered
-         * by a real OBD2 scan based on the parameters that the car's ECU actually reported.
+         * Phase 7 (Item 1) & Approved Scan-to-Checklist Links:
+         * Determines which checklist items can be automatically answered by a real OBD2 scan
+         * based on the parameters that the car's ECU actually reported.
+         * Note: after_temp_fan_operation is NEVER answered by a single scan (only by test-drive monitoring).
          */
         fun buildAutoAnsweredChecklistItemsFromScan(
             scanResult: ObdScanResult,
             milBulbLitOnDashboard: Boolean,
             ecuVinComparison: EcuVinComparisonChoice,
-            adaptiveItems: List<ChecklistItemDefinition>
+            adaptiveItems: List<ChecklistItemDefinition>,
+            milKeyOnAnswer: MilKeyOnUserAnswer = if (milBulbLitOnDashboard) {
+                MilKeyOnUserAnswer.LIT_UP_NORMAL
+            } else {
+                MilKeyOnUserAnswer.NEVER_LIT_UP
+            }
         ): List<ProposedObdChecklistAnswer> {
             if (!scanResult.isCommunicationSuccess || scanResult.isSimulated) return emptyList()
             val itemsById = adaptiveItems.associateBy { it.id }
             val proposals = mutableListOf<ProposedObdChecklistAnswer>()
 
             // 1. Dashboard warning lights & MIL check (int_dashboard_warning_lights)
-            itemsById["int_dashboard_warning_lights"]?.let { def ->
-                val isMilTampered = !milBulbLitOnDashboard || (scanResult.milCommandedOn == true && !milBulbLitOnDashboard)
-                val isMilActive = scanResult.milCommandedOn == true
-                val status = if (isMilTampered || isMilActive) "PROBLEM" else "GOOD"
-                val reasonFr = when {
-                    isMilTampered -> "$OBD_AUTO_ANSWER_TAG Voyant Check-Engine absent au contact"
-                    isMilActive -> "$OBD_AUTO_ANSWER_TAG Voyant Check-Engine commandé ON par le calculateur"
-                    else -> "$OBD_AUTO_ANSWER_TAG Voyant Check-Engine présent au contact et éteint (MIL OFF)"
+            // If user answered "I did not look" (DID_NOT_LOOK) and ECU MIL is not ON, do not auto-answer this item.
+            val isMilTampered = milKeyOnAnswer == MilKeyOnUserAnswer.NEVER_LIT_UP
+            val isMilActive = scanResult.milCommandedOn == true
+            if (isMilTampered || isMilActive || milKeyOnAnswer == MilKeyOnUserAnswer.LIT_UP_NORMAL) {
+                itemsById["int_dashboard_warning_lights"]?.let { def ->
+                    val status = if (isMilTampered || isMilActive) "PROBLEM" else "GOOD"
+                    val reasonFr = when {
+                        isMilTampered -> "$OBD_AUTO_ANSWER_TAG Voyant moteur absent au contact"
+                        isMilActive -> "$OBD_AUTO_ANSWER_TAG Voyant moteur commandé ON par le calculateur"
+                        else -> "$OBD_AUTO_ANSWER_TAG Voyant moteur présent au contact et éteint moteur tournant"
+                    }
+                    val reasonAr = when {
+                        isMilTampered -> "$OBD_AUTO_ANSWER_TAG لمبة تحذير المحرك لا تضيء عند فتح الكونتاكت"
+                        isMilActive -> "$OBD_AUTO_ANSWER_TAG الكمبيوتر يأمر بإضاءة لمبة المحرك (MIL ON)"
+                        else -> "$OBD_AUTO_ANSWER_TAG لمبة المحرك سليمة ومنطفئة (MIL OFF)"
+                    }
+                    val reasonEn = when {
+                        isMilTampered -> "$OBD_AUTO_ANSWER_TAG Engine warning light did not light at key-on"
+                        isMilActive -> "$OBD_AUTO_ANSWER_TAG Engine warning light commanded ON by ECU"
+                        else -> "$OBD_AUTO_ANSWER_TAG Engine warning light works and is OFF with engine running"
+                    }
+                    proposals.add(ProposedObdChecklistAnswer(def, status, reasonFr, reasonAr, reasonEn))
                 }
-                val reasonAr = when {
-                    isMilTampered -> "$OBD_AUTO_ANSWER_TAG لمبة Check-Engine لا تضيء عند فتح الكونتاكت"
-                    isMilActive -> "$OBD_AUTO_ANSWER_TAG الكمبيوتر يأمر بإضاءة لمبة المحرك (MIL ON)"
-                    else -> "$OBD_AUTO_ANSWER_TAG لمبة المحرك سليمة ومنطفئة (MIL OFF)"
-                }
-                val reasonEn = when {
-                    isMilTampered -> "$OBD_AUTO_ANSWER_TAG Check-Engine bulb did not light at key-on"
-                    isMilActive -> "$OBD_AUTO_ANSWER_TAG Check-Engine MIL commanded ON by ECU"
-                    else -> "$OBD_AUTO_ANSWER_TAG Check-Engine bulb works and MIL is OFF"
-                }
-                proposals.add(ProposedObdChecklistAnswer(def, status, reasonFr, reasonAr, reasonEn))
             }
 
             // 2. Battery & Alternator charging voltage (bonnet_battery_alternator)
@@ -966,26 +992,9 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // 3. Engine coolant temperature (after_temp_fan_operation)
-            val tempGauge = scanResult.liveParameters.firstOrNull { it.id == "temp" && it.status != "UNAVAILABLE" }
-            if (tempGauge != null && (tempGauge.status == "GREEN" || tempGauge.status == "RED")) {
-                itemsById["after_temp_fan_operation"]?.let { def ->
-                    val status = if (tempGauge.status == "GREEN") "GOOD" else "PROBLEM"
-                    proposals.add(
-                        ProposedObdChecklistAnswer(
-                            item = def,
-                            status = status,
-                            reasonFr = "$OBD_AUTO_ANSWER_TAG Température liquide de refroidissement : ${tempGauge.valueText}",
-                            reasonAr = "$OBD_AUTO_ANSWER_TAG حرارة سائل التبريد المقروءة: ${tempGauge.valueText}",
-                            reasonEn = "$OBD_AUTO_ANSWER_TAG Coolant temperature read by ECU: ${tempGauge.valueText}"
-                        )
-                    )
-                }
-            }
-
-            // 4. Engine idle RPM stability (start_idle_rpm_stability)
+            // 3. Engine idle RPM steadiness (start_idle_rpm_stability)
             val rpmGauge = scanResult.liveParameters.firstOrNull { it.id == "rpm" && it.status != "UNAVAILABLE" }
-            val rpmNumber = rpmGauge?.valueText?.filter { it.isDigit() }?.toIntOrNull()
+            val rpmNumber = scanResult.idleRpmAvg ?: rpmGauge?.valueText?.takeWhile { it.isDigit() }?.toIntOrNull()
             if (rpmGauge != null && rpmNumber != null && rpmNumber > 400) {
                 itemsById["start_idle_rpm_stability"]?.let { def ->
                     val status = if (rpmGauge.status == "GREEN") "GOOD" else "PROBLEM"
@@ -993,15 +1002,15 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
                         ProposedObdChecklistAnswer(
                             item = def,
                             status = status,
-                            reasonFr = "$OBD_AUTO_ANSWER_TAG Régime ralenti lu par calculateur : ${rpmGauge.valueText}",
-                            reasonAr = "$OBD_AUTO_ANSWER_TAG دوران المحرك (Ralenti) المقروء: ${rpmGauge.valueText}",
-                            reasonEn = "$OBD_AUTO_ANSWER_TAG Engine idle RPM read by ECU: ${rpmGauge.valueText}"
+                            reasonFr = "$OBD_AUTO_ANSWER_TAG Ralenti lu par le calculateur : ${rpmGauge.valueText}",
+                            reasonAr = "$OBD_AUTO_ANSWER_TAG دوران المحرك المقروء: ${rpmGauge.valueText}",
+                            reasonEn = "$OBD_AUTO_ANSWER_TAG Engine idle read by ECU: ${rpmGauge.valueText}"
                         )
                     )
                 }
             }
 
-            // 5. Fault codes & cleared-codes check (final_obd_pending_after_drive)
+            // 4. Fault codes & cleared-codes check (final_obd_pending_after_drive)
             itemsById["final_obd_pending_after_drive"]?.let { def ->
                 val hasFaultsOrReset = scanResult.dtcList.isNotEmpty() || scanResult.isRecentlyClearedFraudAlert
                 val status = if (hasFaultsOrReset) "PROBLEM" else "GOOD"
@@ -1010,14 +1019,14 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
                     ProposedObdChecklistAnswer(
                         item = def,
                         status = status,
-                        reasonFr = "$OBD_AUTO_ANSWER_TAG Codes défauts calculateur : $dtcSummary",
-                        reasonAr = "$OBD_AUTO_ANSWER_TAG أكواد أعطال الكمبيوتر: $dtcSummary",
-                        reasonEn = "$OBD_AUTO_ANSWER_TAG ECU fault codes: $dtcSummary"
+                        reasonFr = "$OBD_AUTO_ANSWER_TAG Défauts enregistrés calculateur : $dtcSummary",
+                        reasonAr = "$OBD_AUTO_ANSWER_TAG الأعطال المسجلة في الكمبيوتر: $dtcSummary",
+                        reasonEn = "$OBD_AUTO_ANSWER_TAG Stored faults in computer: $dtcSummary"
                     )
                 )
             }
 
-            // 6. Chassis VIN comparison if user compared ECU VIN with Carte Grise (doc_vin_three_way_match)
+            // 5. Chassis VIN comparison if user compared ECU VIN with Carte Grise (doc_vin_three_way_match)
             if (!scanResult.ecuVin.isNullOrBlank() && ecuVinComparison != EcuVinComparisonChoice.COULD_NOT_COMPARE) {
                 itemsById["doc_vin_three_way_match"]?.let { def ->
                     val status = if (ecuVinComparison == EcuVinComparisonChoice.SAME) "GOOD" else "PROBLEM"
@@ -1044,7 +1053,12 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
         scanResult: ObdScanResult,
         milBulbLitOnDashboard: Boolean,
         ecuVinComparison: EcuVinComparisonChoice = EcuVinComparisonChoice.COULD_NOT_COMPARE,
-        returnToChecklist: Boolean = true
+        returnToChecklist: Boolean = true,
+        milKeyOnAnswer: MilKeyOnUserAnswer = if (milBulbLitOnDashboard) {
+            MilKeyOnUserAnswer.LIT_UP_NORMAL
+        } else {
+            MilKeyOnUserAnswer.NEVER_LIT_UP
+        }
     ) {
         // Hard block: a simulated result must never be saved into an inspection
         if (scanResult.isSimulated) return
@@ -1090,7 +1104,7 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
             val current = repository.getInspection(inspectionId) ?: return@launch
             val existingAnswers = activeInspectionAnswers.value
 
-            val isMilTampered = !milBulbLitOnDashboard || (scanResult.milCommandedOn == true && !milBulbLitOnDashboard)
+            val isMilTampered = milKeyOnAnswer == MilKeyOnUserAnswer.NEVER_LIT_UP
             val isEcuVinDifferent = !scanResult.ecuVin.isNullOrBlank() &&
                 ecuVinComparison == EcuVinComparisonChoice.DIFFERENT
             val hasFaultsOrFraud = scanResult.dtcList.isNotEmpty() ||
@@ -1143,8 +1157,8 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
                 status = if (!scanResult.isCommunicationSuccess) "UNCHECKED" else if (hasFaultsOrFraud) "PROBLEM" else "GOOD",
                 severity = if (scanResult.isRecentlyClearedFraudAlert || isMilTampered || isEcuVinDifferent || scanResult.dtcList.any { it.severity.name == "CRITICAL" }) "CRITICAL" else "IMPORTANT",
                 estimatedCostDzd = 0,
-                note = obdSummaryNote,
                 photoUri = null,
+                note = obdSummaryNote,
                 timestamp = System.currentTimeMillis()
             )
             repository.saveAnswer(obdAnswer)
@@ -1172,7 +1186,8 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
                 scanResult = scanResult,
                 milBulbLitOnDashboard = milBulbLitOnDashboard,
                 ecuVinComparison = ecuVinComparison,
-                adaptiveItems = adaptiveItems
+                adaptiveItems = adaptiveItems,
+                milKeyOnAnswer = milKeyOnAnswer
             )
             for (proposal in autoAnsweredProposals) {
                 val existingItem = updatedMap[proposal.item.id]

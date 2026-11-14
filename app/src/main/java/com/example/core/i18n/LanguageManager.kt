@@ -6,9 +6,24 @@ import java.util.Locale
 
 val LocalAppLanguage = compositionLocalOf { AppLanguage.FR }
 
+enum class AppThemeMode(val code: String) {
+    LIGHT("light"),
+    DARK("dark"),
+    SYSTEM("system");
+
+    companion object {
+        fun fromCode(code: String?): AppThemeMode = when (code?.lowercase()) {
+            "dark" -> DARK
+            "system" -> SYSTEM
+            else -> LIGHT
+        }
+    }
+}
+
 object LanguagePreferences {
     private const val PREFS_NAME = "fahs_prefs"
     private const val KEY_LANGUAGE = "selected_language"
+    private const val KEY_THEME_MODE = "selected_theme_mode"
     private const val KEY_ONBOARDING_DONE = "onboarding_completed"
     private const val KEY_DEVELOPER_MODE = "developer_mode_enabled"
     private const val KEY_LAST_DONGLE_ADDRESS = "last_successful_dongle_address"
@@ -21,19 +36,28 @@ object LanguagePreferences {
         if (saved != null) {
             return AppLanguage.fromCode(saved)
         }
-        // Detect system locale default
         val systemLang = Locale.getDefault().language.lowercase()
         return when {
             systemLang.startsWith("ar") -> AppLanguage.AR
             systemLang.startsWith("fr") -> AppLanguage.FR
             systemLang.startsWith("en") -> AppLanguage.EN
-            else -> AppLanguage.FR // Default to French as requested
+            else -> AppLanguage.FR
         }
     }
 
     fun saveLanguage(context: Context, language: AppLanguage) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_LANGUAGE, language.code).apply()
+    }
+
+    fun getThemeMode(context: Context): AppThemeMode {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return AppThemeMode.fromCode(prefs.getString(KEY_THEME_MODE, AppThemeMode.LIGHT.code))
+    }
+
+    fun saveThemeMode(context: Context, mode: AppThemeMode) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_THEME_MODE, mode.code).apply()
     }
 
     fun isOnboardingCompleted(context: Context): Boolean {
