@@ -119,30 +119,114 @@ enum class AutomaticScanVerdictLevel {
 }
 
 /**
- * Approved engine & electronics verdict thresholds kept in one data object
- * so they can be adjusted easily after mechanic review.
+ * Approved engine & electronics verdict thresholds loaded from `assets/data/verdict_rules.json`
+ * (and `res/raw/verdict_thresholds.json`) so they can be adjusted easily after mechanic review.
  */
 object ObdVerdictThresholds {
     // 1. Engine coolant temperature (°C)
-    const val COOLANT_NORMAL_MIN_C = 75
-    const val COOLANT_NORMAL_MAX_C = 104
-    const val COOLANT_ORANGE_MIN_C = 105
-    const val COOLANT_ORANGE_MAX_C = 111
-    const val COOLANT_RED_MIN_C = 112
+    @Volatile var COOLANT_NORMAL_MIN_C: Int = 75
+    @Volatile var COOLANT_NORMAL_MAX_C: Int = 104
+    @Volatile var COOLANT_ORANGE_MIN_C: Int = 105
+    @Volatile var COOLANT_ORANGE_MAX_C: Int = 111
+    @Volatile var COOLANT_RED_MIN_C: Int = 112
 
     // 2. Engine idle steadiness and warm speed (rpm)
-    const val IDLE_MAX_HALF_SPREAD_RPM = 60 // ±60 rpm variation -> max spread 120 rpm
-    const val WARM_IDLE_MIN_RPM = 550
-    const val WARM_IDLE_MAX_RPM = 1100
+    @Volatile var IDLE_MAX_HALF_SPREAD_RPM: Int = 60 // ±60 rpm variation -> max spread 120 rpm
+    @Volatile var WARM_IDLE_MIN_RPM: Int = 550
+    @Volatile var WARM_IDLE_MAX_RPM: Int = 1100
+    @Volatile var PROMPT_SWITCH_OFF_AC: Boolean = true
 
     // 3. Charging voltage with engine running (V) — never Red from voltage alone
-    const val CHARGING_VOLT_NORMAL_MIN_V = 13.0
-    const val CHARGING_VOLT_NORMAL_MAX_V = 14.8
+    @Volatile var CHARGING_VOLT_NORMAL_MIN_V: Double = 13.0
+    @Volatile var CHARGING_VOLT_NORMAL_MAX_V: Double = 14.8
+    @Volatile var NEVER_RED_FROM_VOLTAGE_ALONE: Boolean = true
+    @Volatile var DONGLE_READING_APPROXIMATE_NOTE: Boolean = true
 
     // 4. Fuel mixture (Fuel Trim %) — judge LTFT within ±10%, ignore STFT unless beyond ±25%
-    const val LTFT_NORMAL_MAX_ABS_PERCENT = 10.0
-    const val STFT_EXTREME_MAX_ABS_PERCENT = 25.0
+    @Volatile var LTFT_NORMAL_MAX_ABS_PERCENT: Double = 10.0
+    @Volatile var STFT_EXTREME_MAX_ABS_PERCENT: Double = 25.0
+
+    // 5. Recently cleared memory thresholds
+    @Volatile var RECENTLY_CLEARED_RED_DISTANCE_BELOW_KM: Int = 50
+    @Volatile var RECENTLY_CLEARED_RED_WARMUPS_AT_OR_BELOW: Int = 2
+    @Volatile var RECENTLY_CLEARED_ORANGE_INCOMPLETE_MIN: Int = 3
+
+    val TEMP_NORMAL_MIN_C: Int get() = COOLANT_NORMAL_MIN_C
+    val TEMP_NORMAL_MAX_C: Int get() = COOLANT_NORMAL_MAX_C
+    val TEMP_RED_MIN_C: Int get() = COOLANT_RED_MIN_C
+
+    fun loadFromContext(context: android.content.Context): Boolean {
+        val jsonText = runCatching {
+            context.assets.open("data/verdict_rules.json").bufferedReader(Charsets.UTF_8).use { it.readText() }
+        }.getOrElse {
+            runCatching {
+                val resId = context.resources.getIdentifier("verdict_thresholds", "raw", context.packageName)
+                if (resId != 0) {
+                    context.resources.openRawResource(resId).bufferedReader(Charsets.UTF_8).use { it.readText() }
+                } else ""
+            }.getOrDefault("")
+        }
+        return if (jsonText.isNotBlank()) {
+            loadFromJsonString(jsonText)
+        } else {
+            false
+        }
+    }
+
+    fun loadFromJsonString(jsonText: String): Boolean {
+        if (jsonText.isBlank()) return false
+        val parsedWithOrgJson = runCatching {
+            val root = org.json.JSONObject(jsonText)
+            (root.optJSONObject("coolantTemperature") ?: root.optJSONObject("engine_temperature_celsius"))?.let { temp ->
+                COOLANT_NORMAL_MIN_C = temp.optInt("normalMinC", temp.optInt("normal_min", COOLANT_NORMAL_MIN_C))
+                COOLANT_NORMAL_MAX_C = temp.optInt("normalMaxC", temp.optInt("normal_max", COOLANT_NORMAL_MAX_C))
+                COOLANT_ORANGE_MIN_C = temp.optInt("orangeMinC", temp.optInt("orange_min", COOLANT_ORANGE_MIN_C))
+                COOLANT_ORANGE_MAX_C = temp.optInt("orangeMaxC", temp.optInt("orange_max", COOLANT_ORANGE_MAX_C))
+                COOLANT_RED_MIN_C = temp.optInt("redMinC", temp.optInt("red_min", COOLANT_RED_MIN_C))
+            }
+            (root.optJSONObject("idleSteadiness") ?: root.optJSONObject("idle_steadiness_rpm"))?.let { idle ->
+                IDLE_MAX_HALF_SPREAD_RPM = idle.optInt("maxVariationPlusMinusRpm", idle.optInt("max_variation_plus_minus", IDLE_MAX_HALF_SPREAD_RPM))
+                WARM_IDLE_MIN_RPM = idle.optInt("warmIdleMinRpm", idle.optInt("warm_idle_min", WARM_IDLE_MIN_RPM))
+                WARM_IDLE_MAX_RPM = idle.optInt("warmIdleMaxRpm", idle.optInt("warm_idle_max", WARM_IDLE_MAX_RPM))
+                PROMPT_SWITCH_OFF_AC = idle.optBoolean("promptSwitchOffAcBeforeReading", PROMPT_SWITCH_OFF_AC)
+            }
+            (root.optJSONObject("chargingVoltageRunning") ?: root.optJSONObject("charging_voltage_engine_running_volts"))?.let { volt ->
+                CHARGING_VOLT_NORMAL_MIN_V = volt.optDouble("normalMinV", volt.optDouble("normal_min", CHARGING_VOLT_NORMAL_MIN_V))
+                CHARGING_VOLT_NORMAL_MAX_V = volt.optDouble("normalMaxV", volt.optDouble("normal_max", CHARGING_VOLT_NORMAL_MAX_V))
+                NEVER_RED_FROM_VOLTAGE_ALONE = volt.optBoolean("neverRedFromVoltageAlone", NEVER_RED_FROM_VOLTAGE_ALONE)
+                DONGLE_READING_APPROXIMATE_NOTE = volt.optBoolean("dongleReadingApproximateNote", DONGLE_READING_APPROXIMATE_NOTE)
+            }
+            (root.optJSONObject("fuelMixture") ?: root.optJSONObject("fuel_mixture_trim_percent"))?.let { mix ->
+                LTFT_NORMAL_MAX_ABS_PERCENT = mix.optDouble("longTermTrimNormalPlusMinusPercent", mix.optDouble("long_term_normal_plus_minus", LTFT_NORMAL_MAX_ABS_PERCENT))
+                STFT_EXTREME_MAX_ABS_PERCENT = mix.optDouble("shortTermTrimIgnoreWithinPlusMinusPercent", mix.optDouble("short_term_ignore_within_plus_minus", STFT_EXTREME_MAX_ABS_PERCENT))
+            }
+            (root.optJSONObject("recentlyClearedMemory") ?: root.optJSONObject("cleared_codes_recently"))?.let { mem ->
+                RECENTLY_CLEARED_RED_DISTANCE_BELOW_KM = mem.optInt("redDistanceBelowKm", mem.optInt("distance_since_clear_orange_below_km", RECENTLY_CLEARED_RED_DISTANCE_BELOW_KM))
+                RECENTLY_CLEARED_RED_WARMUPS_AT_OR_BELOW = mem.optInt("redWarmupsAtOrBelow", mem.optInt("warmups_since_clear_orange_below", RECENTLY_CLEARED_RED_WARMUPS_AT_OR_BELOW))
+                RECENTLY_CLEARED_ORANGE_INCOMPLETE_MIN = mem.optInt("orangeIncompleteMonitorsMin", mem.optInt("incomplete_readiness_monitors_orange_min", RECENTLY_CLEARED_ORANGE_INCOMPLETE_MIN))
+            }
+            true
+        }.getOrDefault(false)
+
+        if (parsedWithOrgJson) return true
+
+        // Fallback for pure JVM unit tests where android.jar's org.json.JSONObject is stubbed
+        fun extractInt(vararg keys: String): Int? {
+            for (k in keys) {
+                val m = Regex("\"$k\"\\s*:\\s*(-?\\d+)").find(jsonText)
+                if (m != null) return m.groupValues[1].toIntOrNull()
+            }
+            return null
+        }
+        extractInt("normalMinC", "normal_min")?.let { COOLANT_NORMAL_MIN_C = it }
+        extractInt("normalMaxC", "normal_max")?.let { COOLANT_NORMAL_MAX_C = it }
+        extractInt("orangeMinC", "orange_min")?.let { COOLANT_ORANGE_MIN_C = it }
+        extractInt("orangeMaxC", "orange_max")?.let { COOLANT_ORANGE_MAX_C = it }
+        extractInt("redMinC", "red_min")?.let { COOLANT_RED_MIN_C = it }
+        return jsonText.contains("{") && jsonText.contains("}")
+    }
 }
+
 
 data class DtcInfo(
     val code: String,
@@ -309,6 +393,171 @@ object ObdDiagnosticEngine {
 
         return AutomaticScanVerdictLevel.NO_PROBLEM_DETECTED
     }
+
+    fun buildVerdictSummaryLine(
+        scanResult: ObdScanResult,
+        milKeyOnAnswer: MilKeyOnUserAnswer = MilKeyOnUserAnswer.LIT_UP_NORMAL,
+        ecuVinComparison: EcuVinComparisonChoice = EcuVinComparisonChoice.COULD_NOT_COMPARE,
+        language: AppLanguage = AppLanguage.FR
+    ): String {
+        val verdictLevel = evaluateAutomaticScanVerdict(
+            scanResult = scanResult,
+            milKeyOnAnswer = milKeyOnAnswer,
+            ecuVinComparison = ecuVinComparison
+        )
+        return buildVerdictSummaryLine(
+            scanResult = scanResult,
+            verdictLevel = verdictLevel,
+            milKeyOnAnswer = milKeyOnAnswer,
+            ecuVinComparison = ecuVinComparison,
+            lang = language
+        )
+    }
+
+    /**
+     * Builds the concise 1-line plain-language summary shown inside the Verdict Band
+     * on the Scan Result screen (matching the approved design mock-ups).
+     */
+    fun buildVerdictSummaryLine(
+        scanResult: ObdScanResult,
+        verdictLevel: AutomaticScanVerdictLevel,
+        milKeyOnAnswer: MilKeyOnUserAnswer,
+        ecuVinComparison: EcuVinComparisonChoice,
+        lang: AppLanguage
+    ): String {
+        if (!scanResult.isCommunicationSuccess || verdictLevel == AutomaticScanVerdictLevel.INCOMPLETE) {
+            return when (lang) {
+                AppLanguage.AR -> "لم يستجب كمبيوتر المحرك لبروتوكول الفحص القياسي."
+                AppLanguage.FR -> "Le calculateur moteur n'a pas répondu au scan standard."
+                AppLanguage.EN -> "The engine computer did not respond to the standard scan."
+            }
+        }
+
+        val findings = mutableListOf<String>()
+
+        if (!scanResult.ecuVin.isNullOrBlank() && ecuVinComparison == EcuVinComparisonChoice.DIFFERENT) {
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> "رقم الشاسيه في الكمبيوتر مختلف عن البطاقة الرمادية"
+                    AppLanguage.FR -> "n° de châssis calculateur différent de la carte grise"
+                    AppLanguage.EN -> "computer chassis number differs from registration card"
+                }
+            )
+        }
+        if (milKeyOnAnswer == MilKeyOnUserAnswer.NEVER_LIT_UP) {
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> "لمبة تحذير المحرك لا تضيء عند فتح الكونتاكت"
+                    AppLanguage.FR -> "voyant moteur éteint à la mise du contact"
+                    AppLanguage.EN -> "engine warning light did not light up at key-on"
+                }
+            )
+        } else if (scanResult.milCommandedOn == true) {
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> "لمبة تحذير المحرك مضاءة بأمر من الكمبيوتر"
+                    AppLanguage.FR -> "voyant moteur commandé allumé"
+                    AppLanguage.EN -> "engine warning light commanded ON"
+                }
+            )
+        }
+
+        if (scanResult.dtcList.isNotEmpty()) {
+            val count = scanResult.dtcList.size
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> if (count == 1) "عطل واحد مسجل" else "$count أعطال مسجلة"
+                    AppLanguage.FR -> if (count == 1) "1 défaut enregistré" else "$count défauts enregistrés"
+                    AppLanguage.EN -> if (count == 1) "1 fault stored" else "$count faults stored"
+                }
+            )
+        }
+
+        if (scanResult.clearedCodesAlertLevel == ClearedCodesAlertLevel.STRONG_WARNING) {
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> "تم مسح ذاكرة الأعطال مؤخراً"
+                    AppLanguage.FR -> "mémoire des défauts effacée récemment"
+                    AppLanguage.EN -> "fault memory erased recently"
+                }
+            )
+        } else if (scanResult.clearedCodesAlertLevel == ClearedCodesAlertLevel.CANNOT_RULE_OUT) {
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> "اختبارات الفحص الذاتي غير مكتملة بعد"
+                    AppLanguage.FR -> "tests internes non terminés"
+                    AppLanguage.EN -> "internal self-tests not yet complete"
+                }
+            )
+        }
+
+        val tempStatus = scanResult.liveParameters.firstOrNull { it.id == "temp" }?.status
+        if (tempStatus == "RED" || (scanResult.coolantTempC != null && scanResult.coolantTempC >= ObdVerdictThresholds.COOLANT_RED_MIN_C)) {
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> "حرارة المحرك مرتفعة بشكل خطير (${scanResult.coolantTempC ?: ""} °C)"
+                    AppLanguage.FR -> "surchauffe moteur (${scanResult.coolantTempC ?: ""} °C)"
+                    AppLanguage.EN -> "engine overheating (${scanResult.coolantTempC ?: ""} °C)"
+                }
+            )
+        } else if (tempStatus == "ORANGE") {
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> "حرارة المحرك أعلى من المعتاد"
+                    AppLanguage.FR -> "température moteur un peu élevée"
+                    AppLanguage.EN -> "engine temperature slightly high"
+                }
+            )
+        }
+
+        if (scanResult.liveParameters.firstOrNull { it.id == "rpm" }?.status == "ORANGE") {
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> "دوران المحرك غير مستقر"
+                    AppLanguage.FR -> "ralenti moteur instable"
+                    AppLanguage.EN -> "unsteady engine idle"
+                }
+            )
+        }
+
+        if (scanResult.liveParameters.firstOrNull { it.id == "volt" }?.status == "ORANGE") {
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> "فولتية الشحن تحتاج فحصاً"
+                    AppLanguage.FR -> "tension de charge à vérifier"
+                    AppLanguage.EN -> "charging voltage to check"
+                }
+            )
+        }
+
+        if (scanResult.liveParameters.firstOrNull { it.id == "trim" }?.status.let { it == "ORANGE" || it == "RED" }) {
+            findings.add(
+                when (lang) {
+                    AppLanguage.AR -> "خليط الوقود والهواء يحتاج مراجعة"
+                    AppLanguage.FR -> "mélange carburant à contrôler"
+                    AppLanguage.EN -> "fuel mixture out of normal range"
+                }
+            )
+        }
+
+        if (findings.isEmpty()) {
+            return when (lang) {
+                AppLanguage.AR -> "0 أعطال مسجلة، وجميع القراءات المتوفرة من المحرك طبيعية."
+                AppLanguage.FR -> "0 défaut enregistré et toutes les valeurs lues sont normales."
+                AppLanguage.EN -> "0 stored faults and all available engine readings are normal."
+            }
+        }
+
+        val joined = findings.take(2).joinToString(
+            when (lang) {
+                AppLanguage.AR -> " و"
+                AppLanguage.FR -> " et "
+                AppLanguage.EN -> " and "
+            }
+        )
+        return joined.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() } + "."
+    }
+
 
     // Offline trilingual database of common OBD2 trouble codes on the Algerian market
     val offlineDtcDatabase: Map<String, DtcInfo> = mapOf(

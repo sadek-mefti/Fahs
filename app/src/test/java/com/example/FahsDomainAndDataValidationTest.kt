@@ -111,14 +111,67 @@ class FahsDomainAndDataValidationTest {
     }
 
     @Test
+    fun `part 4 three minute visual check returns strictly the 10 ordered points for manual and automatic cars`() {
+        val manualTen = ChecklistEngine.buildChecklistForCar(
+            brand = "Renault",
+            model = "Symbol",
+            fuelType = "ESSENCE",
+            gearboxType = "MANUELLE",
+            isQuickMode = true
+        )
+        assertEquals(10, manualTen.size)
+        assertEquals(
+            listOf(
+                "doc_vin_three_way_match",
+                "doc_carte_grise_owner",
+                "bonnet_chassis_longerons",
+                "ext_paint_respray_mastic",
+                "ext_tires_wear_date",
+                "bonnet_oil_cap_mayo",
+                "int_airbag_abs_lights_key_on",
+                "start_exhaust_smoke_color",
+                "drive_manual_clutch_slip",
+                "drive_steering_brakes_straight"
+            ),
+            manualTen.map { it.id }
+        )
+
+        val autoTen = ChecklistEngine.buildChecklistForCar(
+            brand = "Volkswagen",
+            model = "Golf 7",
+            fuelType = "DIESEL",
+            gearboxType = "AUTOMATIQUE (DSG)",
+            isQuickMode = true
+        )
+        assertEquals(10, autoTen.size)
+        assertEquals("drive_auto_gearbox_shifts", autoTen[8].id)
+
+        // Verify all 8 critical points in the 10-point check are marked CRITICAL
+        val criticalIds = manualTen.filter { it.severity == ItemSeverity.CRITICAL }.map { it.id }.toSet()
+        assertEquals(
+            setOf(
+                "doc_vin_three_way_match",
+                "doc_carte_grise_owner",
+                "bonnet_chassis_longerons",
+                "bonnet_oil_cap_mayo",
+                "int_airbag_abs_lights_key_on",
+                "start_exhaust_smoke_color",
+                "drive_manual_clutch_slip",
+                "drive_steering_brakes_straight"
+            ),
+            criticalIds
+        )
+    }
+
+    @Test
     fun `model weak points match exact model, generation, and engine without brand-wide shortcuts`() {
-        // 1. Petrol Peugeot 208 with 1.2 PureTech gets the PureTech wet-belt weak point
+        // 1. Petrol Peugeot 208 with 1.2 PureTech gets the PureTech wet-belt weak point in Full Mode
         val p208PureTech = ChecklistEngine.buildChecklistForCar(
             brand = "Peugeot",
             model = "208",
             fuelType = "ESSENCE",
             gearboxType = "MANUELLE",
-            isQuickMode = true,
+            isQuickMode = false,
             generation = "208 I Phase 2",
             engineDescription = "1.2 PureTech 82ch"
         ).map { it.id }.toSet()
@@ -404,14 +457,14 @@ class FahsDomainAndDataValidationTest {
         assertFalse(result.isRecentlyClearedFraudAlert)
         assertEquals(ClearedCodesAlertLevel.NOT_AVAILABLE, result.clearedCodesAlertLevel)
 
-        // Verify coolant was read (88 °C) while RPM is marked UNAVAILABLE ("Not available on this car")
-        val coolantGauge = result.liveParameters.first { it.nameEn.contains("Coolant") }
+        // Verify coolant was read (88 °C) while RPM is marked UNAVAILABLE ("Not available")
+        val coolantGauge = result.liveParameters.first { it.id == "temp" }
         assertEquals("88 °C", coolantGauge.valueText)
         assertEquals("GREEN", coolantGauge.status)
 
-        val rpmGauge = result.liveParameters.first { it.nameEn.contains("Idle") }
+        val rpmGauge = result.liveParameters.first { it.id == "rpm" }
         assertEquals("UNAVAILABLE", rpmGauge.status)
-        assertEquals("Not available on this car", rpmGauge.valueText)
+        assertEquals("Not available", rpmGauge.valueText)
 
         // Verify raw exchange log was recorded
         assertTrue(result.rawExchangeLog.isNotEmpty())
@@ -694,17 +747,57 @@ class FahsDomainAndDataValidationTest {
             scanResult = realScan,
             milBulbLitOnDashboard = true,
             ecuVinComparison = com.example.domain.EcuVinComparisonChoice.SAME,
-            adaptiveItems = com.example.domain.ChecklistEngine.fullLibrary
+            adaptiveItems = com.example.domain.ChecklistEngine.fullLibrary,
+            milKeyOnAnswer = com.example.domain.MilKeyOnUserAnswer.LIT_UP_NORMAL
         )
         assertTrue(proposals.isNotEmpty())
         val map = proposals.associateBy { it.item.id }
-        assertEquals("GOOD", map["int_dashboard_warning_lights"]?.status)
-        assertEquals("GOOD", map["bonnet_battery_alternator"]?.status)
-        assertEquals("GOOD", map["after_temp_fan_operation"]?.status)
+        // Approved Part 3 scan-to-checklist links:
+        assertEquals("GOOD", map["int_check_engine_light_key_on"]?.status)
         assertEquals("GOOD", map["start_idle_rpm_stability"]?.status)
-        assertEquals("GOOD", map["final_obd_pending_after_drive"]?.status)
         assertEquals("GOOD", map["doc_vin_three_way_match"]?.status)
+        // Never auto-answered by a single engine OBD scan:
+        assertNull("Airbag/ABS light is never answered by engine OBD scan", map["int_airbag_abs_lights_key_on"])
+        assertNull("after_temp_fan_operation is only answered by test-drive monitoring", map["after_temp_fan_operation"])
+        assertNull("bonnet_battery_alternator is not auto-answered by approximate dongle voltage", map["bonnet_battery_alternator"])
+        assertNull("final_obd_pending_after_drive requires post-drive scan", map["final_obd_pending_after_drive"])
         assertTrue(proposals.all { it.getReason(AppLanguage.EN).startsWith(com.example.ui.viewmodel.FahsViewModel.OBD_AUTO_ANSWER_TAG) })
+
+        // When user answers "I did not look" (DID_NOT_LOOK) and MIL is not commanded on, int_check_engine_light_key_on is left unanswered
+        val didNotLookProposals = com.example.ui.viewmodel.FahsViewModel.buildAutoAnsweredChecklistItemsFromScan(
+            scanResult = realScan,
+            milBulbLitOnDashboard = true,
+            ecuVinComparison = com.example.domain.EcuVinComparisonChoice.COULD_NOT_COMPARE,
+            adaptiveItems = com.example.domain.ChecklistEngine.fullLibrary,
+            milKeyOnAnswer = com.example.domain.MilKeyOnUserAnswer.DID_NOT_LOOK
+        )
+        assertNull(
+            "DID_NOT_LOOK must leave int_check_engine_light_key_on unanswered",
+            didNotLookProposals.firstOrNull { it.item.id == "int_check_engine_light_key_on" }
+        )
+
+        // Verify JSON verdict thresholds loader and plain-language verdict summary line
+        val jsonThresholds = """
+            {
+              "engine_temperature_celsius": { "normal_min": 75, "normal_max": 104, "orange_min": 105, "orange_max": 111, "red_min": 112 },
+              "idle_steadiness_rpm": { "max_variation_plus_minus": 60, "warm_idle_min": 550, "warm_idle_max": 1100 },
+              "charging_voltage_engine_running_volts": { "normal_min": 13.0, "normal_max": 14.8 },
+              "fuel_mixture_trim_percent": { "long_term_normal_plus_minus": 10.0, "short_term_ignore_within_plus_minus": 25.0 },
+              "cleared_codes_recently": { "distance_since_clear_orange_below_km": 50, "warmups_since_clear_orange_below": 5, "incomplete_readiness_monitors_orange_min": 3 }
+            }
+        """.trimIndent()
+        assertTrue(com.example.domain.ObdVerdictThresholds.loadFromJsonString(jsonThresholds))
+        assertEquals(75, com.example.domain.ObdVerdictThresholds.TEMP_NORMAL_MIN_C)
+        assertEquals(104, com.example.domain.ObdVerdictThresholds.TEMP_NORMAL_MAX_C)
+        assertEquals(112, com.example.domain.ObdVerdictThresholds.TEMP_RED_MIN_C)
+        assertTrue(
+            com.example.domain.ObdDiagnosticEngine.buildVerdictSummaryLine(
+                scanResult = realScan,
+                milKeyOnAnswer = com.example.domain.MilKeyOnUserAnswer.LIT_UP_NORMAL,
+                ecuVinComparison = com.example.domain.EcuVinComparisonChoice.SAME,
+                language = AppLanguage.FR
+            ).contains("0 défaut")
+        )
 
         val simulatedProposals = com.example.ui.viewmodel.FahsViewModel.buildAutoAnsweredChecklistItemsFromScan(
             scanResult = realScan.copy(isSimulated = true),
@@ -878,6 +971,85 @@ class FahsDomainAndDataValidationTest {
             assertEquals(code, entry.code)
             assertTrue("Invalid cost range on DTC $code", entry.minCostDzd >= 0 && entry.maxCostDzd >= entry.minCostDzd)
         }
+    }
+
+    @Test
+    fun `part 5 combined report separates Section A engine electronics and Section B visual check`() {
+        // 1. Scan-only report (OBD scan done, 0 manual visual questions answered; only OBD auto-answered tags)
+        val scanOnlyInspection = InspectionEntity(
+            id = 91L,
+            carBrand = "Renault",
+            carModel = "Symbol",
+            carYear = 2019,
+            hasObdScan = true,
+            obdCommunicationSuccess = true,
+            obdDtcCount = 0,
+            obdClearedStatus = "NONE",
+            obdMilBulbLitAtKeyOn = true,
+            obdMilCommandedByEcu = "OFF",
+            obdEcuVinComparison = "SAME",
+            inspectionMode = "QUICK",
+            verdict = "INCOMPLETE",
+            overallScore = null
+        )
+        val obdAutoAnswers = listOf(
+            ChecklistAnswerEntity(
+                inspectionId = 91L,
+                itemId = "int_check_engine_light_key_on",
+                category = "INTERIOR",
+                questionFr = "Voyant moteur",
+                questionAr = "لمبة المحرك",
+                questionEn = "Check-Engine light",
+                status = "GOOD",
+                severity = "CRITICAL",
+                estimatedCostDzd = 0,
+                note = "${com.example.ui.viewmodel.FahsViewModel.OBD_AUTO_ANSWER_TAG} OK"
+            )
+        )
+        val scanOnlyReport = ReportEngine.buildReport(scanOnlyInspection, obdAutoAnswers)
+        assertTrue(scanOnlyReport.hasObdScanIncluded)
+        assertFalse("Auto-answered OBD items alone must not mark visual check as done", scanOnlyReport.isVisualCheckDone)
+        assertTrue("Report with OBD scan and 0 manual visual answers must be marked isScanOnlyReport", scanOnlyReport.isScanOnlyReport)
+
+        val scanOnlyVerdictEn = scanOnlyReport.getDisplayVerdictTitle(AppLanguage.EN)
+        assertTrue(
+            "Clean scan-only report must never read as good to buy; must state visual check not done",
+            scanOnlyVerdictEn.contains("visual check not done", ignoreCase = true)
+        )
+        assertTrue(scanOnlyReport.getVisualCheckNotDoneNotice(AppLanguage.FR).contains("Contrôle visuel non effectué"))
+        assertTrue(scanOnlyReport.getSectionATitle(AppLanguage.EN).contains("Section A"))
+        assertTrue(scanOnlyReport.getSectionBTitle(AppLanguage.EN).contains("Section B"))
+
+        // 2. Combined report (OBD scan + 10-point visual check answered manually)
+        val quickItems = ChecklistEngine.buildChecklistForCar(
+            brand = "Renault",
+            model = "Symbol",
+            fuelType = "ESSENCE",
+            gearboxType = "MANUELLE",
+            isQuickMode = true
+        )
+        val manualAnswers = quickItems.mapIndexed { idx, item ->
+            ChecklistAnswerEntity(
+                inspectionId = 91L,
+                itemId = item.id,
+                category = item.section.name,
+                questionFr = item.questionFr,
+                questionAr = item.questionAr,
+                questionEn = item.questionEn,
+                status = if (idx == 0) "PROBLEM" else "GOOD",
+                severity = item.severity.name,
+                estimatedCostDzd = 0,
+                note = if (idx == 0) "Usure visible" else ""
+            )
+        }
+        val combinedReport = ReportEngine.buildReport(
+            scanOnlyInspection.copy(overallScore = 82, verdict = "NEGOTIATE"),
+            manualAnswers
+        )
+        assertTrue(combinedReport.isVisualCheckDone)
+        assertFalse(combinedReport.isScanOnlyReport)
+        assertTrue(combinedReport.getWhatToAskMechanicItems(AppLanguage.EN).isNotEmpty())
+        assertTrue(combinedReport.getPointsToDiscussOnPriceItems(AppLanguage.EN).isNotEmpty())
     }
 }
 

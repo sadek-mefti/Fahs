@@ -215,8 +215,8 @@ fun ReadAloudAndBetaVoiceAnswerBar(
             .fillMaxWidth()
             .testTag("read_aloud_bar_card"),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, if (isReadAloudEnabled) Emerald600 else Slate200)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, if (isReadAloudEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             FlowRow(
@@ -229,7 +229,7 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { onToggleReadAloud(!isReadAloudEnabled) }
                         .testTag("toggle_read_aloud_chip"),
-                    color = if (isReadAloudEnabled) Emerald700 else Slate100,
+                    color = if (isReadAloudEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Row(
@@ -239,7 +239,7 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                             contentDescription = null,
-                            tint = if (isReadAloudEnabled) Color.White else Emerald800,
+                            tint = if (isReadAloudEnabled) Color.White else MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -251,7 +251,7 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                             },
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = if (isReadAloudEnabled) Color.White else Slate900
+                            color = if (isReadAloudEnabled) Color.White else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -299,7 +299,7 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                                 imageVector = Icons.Default.Mic,
                                 contentDescription = null,
                                 modifier = Modifier.size(15.dp),
-                                tint = Emerald800
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
@@ -309,7 +309,7 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Emerald800
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -321,8 +321,8 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    color = Emerald50,
-                    border = BorderStroke(1.dp, Emerald200)
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
                         Text(
@@ -332,7 +332,7 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                                 AppLanguage.EN -> "Microphone access is used to recognize your spoken answer ('Good', 'Problem', 'Skip') on-device."
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = Emerald900
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Button(
@@ -341,7 +341,7 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                                 micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
                             },
                             shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Text(
                                 text = when (language) {
@@ -372,8 +372,8 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                         .fillMaxWidth()
                         .testTag("beta_voice_answer_confirmation_box"),
                     shape = RoundedCornerShape(10.dp),
-                    color = Emerald50,
-                    border = BorderStroke(1.5.dp, Emerald600)
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
                         Text(
@@ -384,7 +384,7 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                             },
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Emerald900
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -394,7 +394,7 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                                     proposedVoiceAnswerStatus = null
                                 },
                                 shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                 modifier = Modifier.testTag("confirm_beta_voice_answer_btn")
                             ) {
                                 Text(
@@ -423,7 +423,7 @@ fun ReadAloudAndBetaVoiceAnswerBar(
                 Text(
                     text = voiceStatusHint!!,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Slate600
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -507,8 +507,8 @@ fun BetaTyreAgeReaderCard(
             .fillMaxWidth()
             .testTag("beta_tyre_dot_reader_card"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.5.dp, Emerald600)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -524,7 +524,7 @@ fun BetaTyreAgeReaderCard(
                     },
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Emerald900,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -538,7 +538,7 @@ fun BetaTyreAgeReaderCard(
                     AppLanguage.EN -> "Raised black text on black rubber is hard to read by camera, so manual 4-digit entry (e.g. 2421 = week 24 of 2021) is always shown beside the photo button:"
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = Slate600
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -635,8 +635,8 @@ fun BetaTyreAgeReaderCard(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    color = Emerald50,
-                    border = BorderStroke(1.dp, Emerald200)
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
                         Text(
@@ -646,7 +646,7 @@ fun BetaTyreAgeReaderCard(
                                 AppLanguage.EN -> "Camera access is used to photograph the tyre sidewall and read the 4-digit DOT date code offline."
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = Emerald900
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Button(
@@ -655,7 +655,7 @@ fun BetaTyreAgeReaderCard(
                                 camPermLauncher.launch(Manifest.permission.CAMERA)
                             },
                             shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Text(
                                 text = when (language) {
@@ -693,7 +693,7 @@ fun BetaTyreAgeReaderCard(
                             text = summaryLine,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Slate900
+                            color = if (currentProp.isExpiredOrOld) StatusWarningAmberOnContainer else StatusPassGreenOnContainer
                         )
                         if (currentProp.isExpiredOrOld) {
                             Text(
@@ -714,7 +714,7 @@ fun BetaTyreAgeReaderCard(
                                     proposedDot = null
                                 },
                                 shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                 modifier = Modifier.testTag("confirm_tyre_dot_btn")
                             ) {
                                 Text(
@@ -751,7 +751,7 @@ fun BetaTyreAgeReaderCard(
                 Text(
                     text = statusMessage!!,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Slate700
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -842,7 +842,7 @@ fun VoiceNoteDictationRow(
                 },
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
-                color = Slate900,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
 
@@ -868,7 +868,7 @@ fun VoiceNoteDictationRow(
                 Icon(
                     imageVector = Icons.Default.Mic,
                     contentDescription = "Dictate voice note",
-                    tint = Emerald800,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
@@ -888,7 +888,7 @@ fun VoiceNoteDictationRow(
                     },
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Emerald800
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -898,8 +898,8 @@ fun VoiceNoteDictationRow(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp),
-                color = Emerald50,
-                border = BorderStroke(1.dp, Emerald200)
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Column(modifier = Modifier.padding(10.dp)) {
                     Text(
@@ -909,7 +909,7 @@ fun VoiceNoteDictationRow(
                             AppLanguage.EN -> "Why allow Microphone? To turn your speech into a text note using Android's built-in speech recognition (offline where the language pack is installed)."
                         },
                         style = MaterialTheme.typography.labelSmall,
-                        color = Emerald900
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Button(
@@ -918,7 +918,7 @@ fun VoiceNoteDictationRow(
                             micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         },
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Text(
                             text = when (language) {
@@ -943,8 +943,8 @@ fun VoiceNoteDictationRow(
                     .fillMaxWidth()
                     .testTag("voice_note_confirmation_box"),
                 shape = RoundedCornerShape(10.dp),
-                color = Emerald50,
-                border = BorderStroke(1.5.dp, Emerald600)
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
             ) {
                 Column(modifier = Modifier.padding(10.dp)) {
                     Text(
@@ -955,14 +955,14 @@ fun VoiceNoteDictationRow(
                         },
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Emerald900
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "« $pendingNote »",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Slate900
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -972,7 +972,7 @@ fun VoiceNoteDictationRow(
                                 proposedVoiceNote = null
                             },
                             shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             modifier = Modifier.testTag("confirm_voice_note_btn")
                         ) {
                             Text(
@@ -1009,7 +1009,7 @@ fun VoiceNoteDictationRow(
             Text(
                 text = statusError!!,
                 style = MaterialTheme.typography.labelSmall,
-                color = Slate600
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

@@ -458,9 +458,9 @@ object PdfReportGenerator {
             AppLanguage.EN -> "Incomplete"
         }
         val shareText = when (language) {
-            AppLanguage.AR -> "تقرير فحص سيارة ${report.inspection.carBrand} ${report.inspection.carModel} (${report.inspection.carYear}) — النتيجة: $scoreLabel (${report.getVerdictTitle(language)})"
-            AppLanguage.FR -> "Rapport d'inspection Fahs : ${report.inspection.carBrand} ${report.inspection.carModel} (${report.inspection.carYear}) — Score : $scoreLabel (${report.getVerdictTitle(language)})"
-            AppLanguage.EN -> "Fahs Inspection Report: ${report.inspection.carBrand} ${report.inspection.carModel} (${report.inspection.carYear}) — Score: $scoreLabel (${report.getVerdictTitle(language)})"
+            AppLanguage.AR -> "تقرير فحص سيارة ${report.inspection.carBrand} ${report.inspection.carModel} (${report.inspection.carYear}) — النتيجة: $scoreLabel (${report.getDisplayVerdictTitle(language)})"
+            AppLanguage.FR -> "Rapport d'inspection Fahs : ${report.inspection.carBrand} ${report.inspection.carModel} (${report.inspection.carYear}) — Score : $scoreLabel (${report.getDisplayVerdictTitle(language)})"
+            AppLanguage.EN -> "Fahs Inspection Report: ${report.inspection.carBrand} ${report.inspection.carModel} (${report.inspection.carYear}) — Score: $scoreLabel (${report.getDisplayVerdictTitle(language)})"
         }
 
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -757,7 +757,7 @@ object PdfReportGenerator {
         // 3. RESULT BLOCK (Large Circular Score Gauge + Verdict in Coloured Band)
         // =========================================================================
         val scoreVal = report.overallScore
-        val verdictTitle = report.getVerdictTitle(language)
+        val verdictTitle = report.getDisplayVerdictTitle(language)
         val rawBadgeSuffix = if (report.isCriticalCapTriggered && report.rawUncappedScore != null && scoreVal != null) {
             when (language) {
                 AppLanguage.AR -> " (المقيّدة: $scoreVal/100 | الخام: ${report.rawUncappedScore}/100)"
@@ -767,11 +767,20 @@ object PdfReportGenerator {
         } else ""
         val bandFullTitle = verdictTitle + rawBadgeSuffix
 
-        val (bandBg, bandBorder, bandTextCol) = when (report.verdict) {
-            "GOOD" -> Triple(COLOR_GREEN_BAND_BG, COLOR_GREEN_BAND_BORDER, COLOR_GREEN_BAND_TEXT)
-            "NEGOTIATE" -> Triple(COLOR_ORANGE_BAND_BG, COLOR_ORANGE_BAND_BORDER, COLOR_ORANGE_BAND_TEXT)
-            "AVOID" -> Triple(COLOR_RED_BAND_BG, COLOR_RED_BAND_BORDER, COLOR_RED_BAND_TEXT)
-            else -> Triple(COLOR_SLATE_100, COLOR_SLATE_500, COLOR_SLATE_800)
+        val (bandBg, bandBorder, bandTextCol) = if (report.isScanOnlyReport) {
+            when (report.obdBlock.scanVerdictLevel) {
+                "GREEN" -> Triple(COLOR_GREEN_BAND_BG, COLOR_GREEN_BAND_BORDER, COLOR_GREEN_BAND_TEXT)
+                "ORANGE" -> Triple(COLOR_ORANGE_BAND_BG, COLOR_ORANGE_BAND_BORDER, COLOR_ORANGE_BAND_TEXT)
+                "RED" -> Triple(COLOR_RED_BAND_BG, COLOR_RED_BAND_BORDER, COLOR_RED_BAND_TEXT)
+                else -> Triple(COLOR_SLATE_100, COLOR_SLATE_500, COLOR_SLATE_800)
+            }
+        } else {
+            when (report.verdict) {
+                "GOOD" -> Triple(COLOR_GREEN_BAND_BG, COLOR_GREEN_BAND_BORDER, COLOR_GREEN_BAND_TEXT)
+                "NEGOTIATE" -> Triple(COLOR_ORANGE_BAND_BG, COLOR_ORANGE_BAND_BORDER, COLOR_ORANGE_BAND_TEXT)
+                "AVOID" -> Triple(COLOR_RED_BAND_BG, COLOR_RED_BAND_BORDER, COLOR_RED_BAND_TEXT)
+                else -> Triple(COLOR_SLATE_100, COLOR_SLATE_500, COLOR_SLATE_800)
+            }
         }
         val verdictBandPaint = textPaint(9.8f, bandTextCol, bold = true)
         val bandWidth = CONTENT_WIDTH - 118f
@@ -780,7 +789,11 @@ object PdfReportGenerator {
         val bandHeight = (bandTextH + 10f).coerceAtLeast(24f)
 
         val capLine = report.getCriticalCapOneLineExplanation(language)
-        val rawVerdictSummary = report.getVerdictSummary(language)
+        val rawVerdictSummary = if (report.isScanOnlyReport) {
+            report.getVisualCheckNotDoneNotice(language)
+        } else {
+            report.getVerdictSummary(language)
+        }
         val verdictSummary = if (capLine != null && rawVerdictSummary.startsWith(capLine)) {
             rawVerdictSummary.removePrefix(capLine).trimStart('.', ' ', '،')
         } else {
@@ -818,11 +831,20 @@ object PdfReportGenerator {
             val gaugeCenterY = yPos + (resultBlockHeight / 2f)
             val gaugeRadius = 32f
 
-            val gaugeAccentColor = when (report.verdict) {
-                "GOOD" -> COLOR_GREEN_BAND_BORDER
-                "NEGOTIATE" -> COLOR_ORANGE_BAND_BORDER
-                "AVOID" -> COLOR_RED_BAND_BORDER
-                else -> COLOR_SLATE_500
+            val gaugeAccentColor = if (report.isScanOnlyReport) {
+                when (report.obdBlock.scanVerdictLevel) {
+                    "GREEN" -> COLOR_GREEN_BAND_BORDER
+                    "ORANGE" -> COLOR_ORANGE_BAND_BORDER
+                    "RED" -> COLOR_RED_BAND_BORDER
+                    else -> COLOR_SLATE_500
+                }
+            } else {
+                when (report.verdict) {
+                    "GOOD" -> COLOR_GREEN_BAND_BORDER
+                    "NEGOTIATE" -> COLOR_ORANGE_BAND_BORDER
+                    "AVOID" -> COLOR_RED_BAND_BORDER
+                    else -> COLOR_SLATE_500
+                }
             }
 
             val arcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -843,17 +865,26 @@ object PdfReportGenerator {
                 arcPaint.color = gaugeAccentColor
                 val sweep = (scoreVal.coerceIn(0, 100) / 100f) * 360f
                 canvas.drawArc(arcRect, -90f, sweep, false, arcPaint)
+            } else if (report.isScanOnlyReport) {
+                arcPaint.color = gaugeAccentColor
+                canvas.drawArc(arcRect, -90f, 360f, false, arcPaint)
             }
 
-            val scoreNumPaint = textPaint(17f, COLOR_SLATE_900, bold = true).apply {
+            val scoreNumPaint = textPaint(if (scoreVal != null) 17f else 14f, COLOR_SLATE_900, bold = true).apply {
                 textAlign = Paint.Align.CENTER
             }
             val scoreDenomPaint = textPaint(8f, COLOR_SLATE_500, bold = true).apply {
                 textAlign = Paint.Align.CENTER
             }
-            val scoreStr = scoreVal?.toString() ?: "—"
-            canvas.drawText(scoreStr, gaugeCenterX, gaugeCenterY + 2f, scoreNumPaint)
-            canvas.drawText("/ 100", gaugeCenterX, gaugeCenterY + 14f, scoreDenomPaint)
+            if (scoreVal != null) {
+                canvas.drawText(scoreVal.toString(), gaugeCenterX, gaugeCenterY + 2f, scoreNumPaint)
+                canvas.drawText("/ 100", gaugeCenterX, gaugeCenterY + 14f, scoreDenomPaint)
+            } else if (report.isScanOnlyReport) {
+                canvas.drawText("OBD", gaugeCenterX, gaugeCenterY + 5f, scoreNumPaint)
+            } else {
+                canvas.drawText("—", gaugeCenterX, gaugeCenterY + 2f, scoreNumPaint)
+                canvas.drawText("/ 100", gaugeCenterX, gaugeCenterY + 14f, scoreDenomPaint)
+            }
 
             // 3b. Verdict Coloured Band & Details on the end side
             val bandX = mirrorX(MARGIN_H + 112f, bandWidth, isRtl)
@@ -909,7 +940,7 @@ object PdfReportGenerator {
         val plainSummaryTitle = when (language) {
             AppLanguage.AR -> "ملخص الفحص بلغة مبسطة (نقاط القوة، العيوب، وما تسأل عنه الميكانيكي)"
             AppLanguage.FR -> "Résumé en langage clair (Points forts, défauts & questions au mécanicien)"
-            AppLanguage.EN -> "Plain-Language Summary (Strengths, Problems & What to Ask a Mechanic)"
+            AppLanguage.EN -> "Plain-language summary (strengths, problems & what to ask a mechanic)"
         }
         val plainSummaryBody = report.getPlainLanguageSummary(language)
         val plainTextWidth = (CONTENT_WIDTH - 24f).toInt()
@@ -954,10 +985,199 @@ object PdfReportGenerator {
         yPos += plainBoxHeight + 12f
 
         // =========================================================================
-        // 5. SCORES PER AREA (Horizontal bar for each area of the inspection)
+        // 5. SECTION A — ENGINE & ELECTRONICS (FROM THE AUTOMATIC SCAN)
         // =========================================================================
+        val obd = report.obdBlock
+        val obdSectionTitle = report.getSectionATitle(language)
+
+        if (!obd.isScanned) {
+            val oneLineBoxH = 38f
+            ensureSpace(oneLineBoxH + 10f)
+            if (!dryRun) {
+                fillPaint.color = COLOR_SLATE_100
+                canvas.drawRoundRect(
+                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + oneLineBoxH),
+                    8f,
+                    8f,
+                    fillPaint
+                )
+                strokePaint.color = COLOR_SLATE_300
+                canvas.drawRoundRect(
+                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + oneLineBoxH),
+                    8f,
+                    8f,
+                    strokePaint
+                )
+                val noScanOneLine = when (language) {
+                    AppLanguage.AR -> "لم يتم إجراء فحص إلكتروني للكمبيوتر (OBD2) خلال هذه المعاينة (فحص يدوي وبصري فقط)."
+                    AppLanguage.FR -> "Aucun scan OBD2 n'a été effectué lors de cette inspection (contrôle visuel et mécanique uniquement)."
+                    AppLanguage.EN -> "No OBD2 electronic scan was performed during this inspection (visual and mechanical check only)."
+                }
+                drawTextBlock(canvas, obdSectionTitle, sectionHeadingPaint, MARGIN_H + 10f, yPos + 5f, (CONTENT_WIDTH - 20f).toInt(), isRtl)
+                drawTextBlock(canvas, noScanOneLine, bodyRegularPaint, MARGIN_H + 10f, yPos + 20f, (CONTENT_WIDTH - 20f).toInt(), isRtl)
+            }
+            yPos += oneLineBoxH + 10f
+        } else {
+            val scopeLine = obd.getScopeDisclaimerText(language)
+            val verdictLine = obd.getSectionAVerdictHeadline(language)
+            val statusLines = listOf(
+                "• $verdictLine",
+                "• $scopeLine",
+                when (language) {
+                    AppLanguage.AR -> "• الاتصال بالكمبيوتر: ${obd.getConnectionStatusText(language)}"
+                    AppLanguage.FR -> "• Connexion calculateur : ${obd.getConnectionStatusText(language)}"
+                    AppLanguage.EN -> "• ECU connection: ${obd.getConnectionStatusText(language)}"
+                },
+                when (language) {
+                    AppLanguage.AR -> "• حالة مسح الذاكرة الحديث: ${obd.getClearedCodesText(language)}"
+                    AppLanguage.FR -> "• État d'effacement de la mémoire : ${obd.getClearedCodesText(language)}"
+                    AppLanguage.EN -> "• Cleared-codes finding: ${obd.getClearedCodesText(language)}"
+                },
+                when (language) {
+                    AppLanguage.AR -> "• لمبة المحرك (Check Engine): ${obd.getCheckEngineLightText(language)}"
+                    AppLanguage.FR -> "• Voyant Check-Engine : ${obd.getCheckEngineLightText(language)}"
+                    AppLanguage.EN -> "• Check-Engine light: ${obd.getCheckEngineLightText(language)}"
+                },
+                when (language) {
+                    AppLanguage.AR -> "• مقارنة رقم الشاسيه الإلكتروني (09 02): ${obd.getChassisComparisonText(language)}"
+                    AppLanguage.FR -> "• Comparaison N° châssis ECU (09 02) : ${obd.getChassisComparisonText(language)}"
+                    AppLanguage.EN -> "• ECU VIN comparison (09 02): ${obd.getChassisComparisonText(language)}"
+                }
+            )
+            val dtcExplanationLines = if (obd.faultCodeDetails.isNotEmpty()) {
+                obd.faultCodeDetails.map { dtc ->
+                    "• [${dtc.code} — ${dtc.dtcType.getLabel(language)}] ${dtc.getTitle(language)} : ${dtc.getExplanation(language)}"
+                }
+            } else {
+                listOf(
+                    when (language) {
+                        AppLanguage.AR -> "• أكواد الأعطال: ${obd.getFaultCodesText(language)}"
+                        AppLanguage.FR -> "• Codes défauts : ${obd.getFaultCodesText(language)}"
+                        AppLanguage.EN -> "• Fault codes: ${obd.getFaultCodesText(language)}"
+                    }
+                )
+            }
+
+            val combinedObdText = (statusLines + dtcExplanationLines).joinToString("\n")
+            val obdTextW = (CONTENT_WIDTH - 24f).toInt()
+            val obdTextH = measureTextHeight(combinedObdText, bodyRegularPaint, obdTextW, isRtl)
+            val liveRowsCount = obd.liveReadings.size
+            val liveSectionH = if (liveRowsCount > 0) (20f + liveRowsCount * 16f) else 0f
+            val obdCardH = 28f + obdTextH + liveSectionH + 10f
+
+            ensureSpace(obdCardH + 10f)
+            if (!dryRun) {
+                fillPaint.color = if (obd.hasCriticalAlert) COLOR_RED_BAND_BG else COLOR_EMERALD_50
+                canvas.drawRoundRect(
+                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + obdCardH),
+                    10f,
+                    10f,
+                    fillPaint
+                )
+                strokePaint.color = if (obd.hasCriticalAlert) COLOR_RED_BAND_BORDER else COLOR_EMERALD_600
+                canvas.drawRoundRect(
+                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + obdCardH),
+                    10f,
+                    10f,
+                    strokePaint
+                )
+
+                drawTextBlock(canvas, obdSectionTitle, sectionHeadingPaint, MARGIN_H + 12f, yPos + 7f, obdTextW, isRtl)
+                val drawnH = drawTextBlock(canvas, combinedObdText, bodyRegularPaint, MARGIN_H + 12f, yPos + 24f, obdTextW, isRtl)
+
+                if (obd.liveReadings.isNotEmpty()) {
+                    var liveY = yPos + 28f + drawnH
+                    val liveHeader = when (language) {
+                        AppLanguage.AR -> "القراءات الحية المسجلة (مع مؤشر الحالة):"
+                        AppLanguage.FR -> "Valeurs en direct mesurées (avec marqueur d'état) :"
+                        AppLanguage.EN -> "Live Engine Readings (with status markers):"
+                    }
+                    drawTextBlock(canvas, liveHeader, bodyBoldPaint, MARGIN_H + 12f, liveY, obdTextW, isRtl)
+                    liveY += 16f
+
+                    for (gauge in obd.liveReadings) {
+                        val markerColor = when (gauge.status) {
+                            "GREEN" -> COLOR_GREEN_BAND_BORDER
+                            "ORANGE" -> COLOR_ORANGE_BAND_BORDER
+                            "RED" -> COLOR_RED_BAND_BORDER
+                            else -> COLOR_SLATE_500
+                        }
+                        val markerTag = when (gauge.status) {
+                            "GREEN" -> if (language == AppLanguage.AR) "طبيعي" else "OK"
+                            "ORANGE" -> if (language == AppLanguage.AR) "انتباه" else "WARN"
+                            "RED" -> if (language == AppLanguage.AR) "خطر" else "ALERT"
+                            else -> if (language == AppLanguage.AR) "غير متوفر" else "N/A"
+                        }
+                        val normalLabel = when (language) {
+                            AppLanguage.AR -> "المدى الطبيعي"
+                            AppLanguage.FR -> "Normal"
+                            AppLanguage.EN -> "Normal"
+                        }
+                        val dotX = mirrorX(MARGIN_H + 16f, 8f, isRtl)
+                        fillPaint.color = markerColor
+                        canvas.drawCircle(dotX + 4f, liveY + 6f, 4f, fillPaint)
+
+                        val rowText = if (isRtl) {
+                            "${gauge.getName(language)} : \u200E${gauge.valueText}\u200E ($normalLabel : \u200E${gauge.normalRangeText}\u200E) [$markerTag]"
+                        } else {
+                            "${gauge.getName(language)} : ${gauge.valueText} ($normalLabel : ${gauge.normalRangeText}) [$markerTag]"
+                        }
+                        val rowTextX = mirrorX(MARGIN_H + 30f, CONTENT_WIDTH - 42f, isRtl)
+                        drawTextBlock(canvas, rowText, smallBoldPaint, rowTextX, liveY, (CONTENT_WIDTH - 42f).toInt(), isRtl)
+                        liveY += 15f
+                    }
+                }
+            }
+            yPos += obdCardH + 10f
+        }
+
+        // =========================================================================
+        // 6. SECTION B — BODY, TYRES, PAPERS & ROAD TEST (FROM THE VISUAL CHECK)
+        // =========================================================================
+        val sectionBTitle = report.getSectionBTitle(language)
+        ensureSpace(28f)
+        if (!dryRun) {
+            drawTextBlock(
+                canvas = canvas,
+                text = sectionBTitle,
+                paint = sectionHeadingPaint,
+                x = MARGIN_H,
+                y = yPos,
+                width = CONTENT_WIDTH.toInt(),
+                isRtl = isRtl
+            )
+        }
+        yPos += 18f
+
+        if (!report.isVisualCheckDone) {
+            val noticeText = report.getVisualCheckNotDoneNotice(language)
+            val noticeW = (CONTENT_WIDTH - 24f).toInt()
+            val noticeH = measureTextHeight(noticeText, bodyBoldPaint, noticeW, isRtl) + 18f
+            ensureSpace(noticeH + 10f)
+            if (!dryRun) {
+                fillPaint.color = COLOR_ORANGE_BAND_BG
+                canvas.drawRoundRect(
+                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + noticeH),
+                    8f,
+                    8f,
+                    fillPaint
+                )
+                strokePaint.color = COLOR_ORANGE_BAND_BORDER
+                canvas.drawRoundRect(
+                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + noticeH),
+                    8f,
+                    8f,
+                    strokePaint
+                )
+                val noticePaint = textPaint(9.0f, COLOR_ORANGE_BAND_TEXT, bold = true)
+                drawTextBlock(canvas, noticeText, noticePaint, MARGIN_H + 12f, yPos + 8f, noticeW, isRtl)
+            }
+            yPos += noticeH + 10f
+        }
+
+        // 6a. SCORES PER AREA (Horizontal bar for each area of the inspection)
         val areas = report.areaScores
-        if (areas.isNotEmpty()) {
+        if (report.isVisualCheckDone && areas.isNotEmpty()) {
             val rowH = 16.5f
             val areaBoxHeight = 28f + (areas.size * rowH) + 8f
             ensureSpace(areaBoxHeight + 12f)
@@ -1065,7 +1285,7 @@ object PdfReportGenerator {
         }
 
         // =========================================================================
-        // 6. PROBLEMS FOUND (Clean table, most serious first, with photo thumbnails)
+        // 6b. PROBLEMS FOUND (Clean table, most serious first, with photo thumbnails)
         // =========================================================================
         val allProblems = report.criticalProblems + report.negotiableProblems
         val problemsTitle = when (language) {
@@ -1113,373 +1333,288 @@ object PdfReportGenerator {
             yPos += thHeight
         }
 
-        ensureSpace(54f)
-        if (!dryRun) {
-            drawTextBlock(
-                canvas = canvas,
-                text = problemsTitle,
-                paint = sectionHeadingPaint,
-                x = MARGIN_H,
-                y = yPos,
-                width = CONTENT_WIDTH.toInt(),
-                isRtl = isRtl
-            )
-        }
-        yPos += 18f
-
-        if (allProblems.isEmpty()) {
-            val emptyProbHeight = 28f
-            ensureSpace(emptyProbHeight + 10f)
+        if (report.isVisualCheckDone || allProblems.isNotEmpty()) {
+            ensureSpace(54f)
             if (!dryRun) {
-                fillPaint.color = COLOR_GREEN_BAND_BG
-                canvas.drawRoundRect(
-                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + emptyProbHeight),
-                    8f,
-                    8f,
-                    fillPaint
-                )
-                val noProbText = when (language) {
-                    AppLanguage.AR -> "✓ لم يتم تسجيل أي عيب في النقاط التي تم فحصها."
-                    AppLanguage.FR -> "✓ Aucun problème constaté sur l'ensemble des points vérifiés."
-                    AppLanguage.EN -> "✓ No problems recorded across the inspected items."
-                }
                 drawTextBlock(
                     canvas = canvas,
-                    text = noProbText,
-                    paint = bodyBoldPaint,
-                    x = MARGIN_H + 10f,
-                    y = yPos + 7f,
-                    width = (CONTENT_WIDTH - 20f).toInt(),
+                    text = problemsTitle,
+                    paint = sectionHeadingPaint,
+                    x = MARGIN_H,
+                    y = yPos,
+                    width = CONTENT_WIDTH.toInt(),
                     isRtl = isRtl
                 )
             }
-            yPos += emptyProbHeight + 10f
-        } else {
-            drawProblemsTableHeader()
+            yPos += 18f
 
-            for ((rowIdx, prob) in allProblems.withIndex()) {
-                val itemText = "${prob.getQuestion(language)}\n(${prob.getSectionTitle(language)})"
-                // Clean internal auto-answer prefix if present so the user's note looks clean
-                val cleanNote = prob.buyerNote
-                    .replace(com.example.ui.viewmodel.FahsViewModel.OBD_AUTO_ANSWER_TAG, "")
-                    .trim()
-                    .ifBlank { "—" }
-
-                val approxCostText = if (prob.maxCostDzd > 0) {
-                    "${ReportEngine.formatDzd(prob.minCostDzd)} – ${ReportEngine.formatDzd(prob.maxCostDzd)}"
-                } else {
-                    when (language) {
-                        AppLanguage.AR -> "تُسعّر عند الميكانيكي"
-                        AppLanguage.FR -> "À chiffrer (mécanicien)"
-                        AppLanguage.EN -> "Mechanic quote"
-                    }
-                }
-
-                val hasRealPhoto = InspectionPhotoHelper.isRealStoredPhoto(prob.photoUri)
-                val hCol1 = measureTextHeight(itemText, bodyBoldPaint, (col1W - 10f).toInt(), isRtl)
-                val hCol3 = measureTextHeight(cleanNote, bodyRegularPaint, (col3W - 10f).toInt(), isRtl)
-                val hCol4 = measureTextHeight(approxCostText, smallBoldPaint, (col4W - 10f).toInt(), isRtl)
-                val photoMinH = if (hasRealPhoto) 48f else 18f
-                val rowHeight = (maxOf(hCol1, hCol3, hCol4, photoMinH) + 12f).coerceAtLeast(30f)
-
-                // Never split a table row across two pages: if it doesn't fit, start a new page and redraw table header
-                val startedNewPage = ensureSpace(rowHeight + 4f)
-                if (startedNewPage) {
-                    drawProblemsTableHeader()
-                }
-
+            if (allProblems.isEmpty()) {
+                val emptyProbHeight = 28f
+                ensureSpace(emptyProbHeight + 10f)
                 if (!dryRun) {
-                    val rowBg = when {
-                        prob.severity == ItemSeverity.CRITICAL -> Color.rgb(254, 242, 242)
-                        rowIdx % 2 == 1 -> COLOR_SLATE_50
-                        else -> Color.WHITE
-                    }
-                    val rowRect = RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + rowHeight)
-                    fillPaint.color = rowBg
-                    canvas.drawRect(rowRect, fillPaint)
-                    strokePaint.color = COLOR_SLATE_200
-                    canvas.drawRect(rowRect, strokePaint)
-
-                    val x1 = mirrorX(MARGIN_H, col1W, isRtl)
-                    val x2 = mirrorX(MARGIN_H + col1W, col2W, isRtl)
-                    val x3 = mirrorX(MARGIN_H + col1W + col2W, col3W, isRtl)
-                    val x4 = mirrorX(MARGIN_H + col1W + col2W + col3W, col4W, isRtl)
-                    val x5 = mirrorX(MARGIN_H + col1W + col2W + col3W + col4W, col5W, isRtl)
-
-                    // 1. Item
-                    drawTextBlock(canvas, itemText, bodyBoldPaint, x1 + 5f, yPos + 5f, (col1W - 10f).toInt(), isRtl)
-
-                    // 2. Severity pill badge
-                    val (sevBg, sevTextCol) = when (prob.severity) {
-                        ItemSeverity.CRITICAL -> COLOR_RED_BAND_BG to COLOR_RED_BAND_TEXT
-                        ItemSeverity.IMPORTANT -> COLOR_ORANGE_BAND_BG to COLOR_ORANGE_BAND_TEXT
-                        ItemSeverity.MINOR -> COLOR_SLATE_200 to COLOR_SLATE_800
-                    }
-                    val pillRect = RectF(x2 + 4f, yPos + 6f, x2 + col2W - 4f, yPos + 22f)
-                    fillPaint.color = sevBg
-                    canvas.drawRoundRect(pillRect, 5f, 5f, fillPaint)
-                    val sevPaint = textPaint(7.6f, sevTextCol, bold = true).apply {
-                        textAlign = Paint.Align.CENTER
-                    }
-                    canvas.drawText(
-                        prob.severity.getLabel(language),
-                        pillRect.centerX(),
-                        pillRect.centerY() + 2.8f,
-                        sevPaint
+                    fillPaint.color = COLOR_GREEN_BAND_BG
+                    canvas.drawRoundRect(
+                        RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + emptyProbHeight),
+                        8f,
+                        8f,
+                        fillPaint
                     )
-
-                    // 3. User's note
-                    drawTextBlock(canvas, cleanNote, bodyRegularPaint, x3 + 5f, yPos + 5f, (col3W - 10f).toInt(), isRtl)
-
-                    // 4. Approx repair cost
-                    drawTextBlock(canvas, approxCostText, smallBoldPaint, x4 + 5f, yPos + 5f, (col4W - 10f).toInt(), isRtl)
-
-                    // 5. Photo thumbnail (resized & JPEG-compressed for WhatsApp)
-                    val thumb = if (hasRealPhoto) {
-                        InspectionPhotoHelper.loadCompressedPdfThumbnailBitmap(prob.photoUri, maxDimensionPx = 160, jpegQuality = 72)
-                    } else null
-
-                    if (thumb != null) {
-                        val maxThumbW = col5W - 10f
-                        val maxThumbH = rowHeight - 10f
-                        val aspect = thumb.width.toFloat().coerceAtLeast(1f) / thumb.height.toFloat().coerceAtLeast(1f)
-                        var drawW = maxThumbW
-                        var drawH = drawW / aspect
-                        if (drawH > maxThumbH) {
-                            drawH = maxThumbH
-                            drawW = drawH * aspect
-                        }
-                        val thumbLeft = x5 + (col5W - drawW) / 2f
-                        val thumbTop = yPos + (rowHeight - drawH) / 2f
-                        canvas.drawBitmap(thumb, null, RectF(thumbLeft, thumbTop, thumbLeft + drawW, thumbTop + drawH), null)
-                    } else {
-                        drawTextBlock(canvas, "—", smallLabelPaint, x5 + 10f, yPos + 6f, (col5W - 16f).toInt(), isRtl)
+                    val noProbText = when (language) {
+                        AppLanguage.AR -> "✓ لم يتم تسجيل أي عيب في النقاط التي تم فحصها."
+                        AppLanguage.FR -> "✓ Aucun problème constaté sur l'ensemble des points vérifiés."
+                        AppLanguage.EN -> "✓ No problems recorded across the inspected items."
                     }
+                    drawTextBlock(
+                        canvas = canvas,
+                        text = noProbText,
+                        paint = bodyBoldPaint,
+                        x = MARGIN_H + 10f,
+                        y = yPos + 7f,
+                        width = (CONTENT_WIDTH - 20f).toInt(),
+                        isRtl = isRtl
+                    )
                 }
-                yPos += rowHeight
-            }
-            yPos += 10f
-        }
-
-        // =========================================================================
-        // 7. OBD SCAN SECTION (Fault codes + explanations, cleared-codes, live readings with markers, or 1-line if not scanned)
-        // =========================================================================
-        val obd = report.obdBlock
-        val obdSectionTitle = when (language) {
-            AppLanguage.AR -> "قسم الفحص الإلكتروني للكمبيوتر (OBD2)"
-            AppLanguage.FR -> "Diagnostic électronique du calculateur (OBD2)"
-            AppLanguage.EN -> "OBD2 Electronic Diagnostic Section"
-        }
-
-        if (!obd.isScanned) {
-            val oneLineBoxH = 38f
-            ensureSpace(oneLineBoxH + 10f)
-            if (!dryRun) {
-                fillPaint.color = COLOR_SLATE_100
-                canvas.drawRoundRect(
-                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + oneLineBoxH),
-                    8f,
-                    8f,
-                    fillPaint
-                )
-                strokePaint.color = COLOR_SLATE_300
-                canvas.drawRoundRect(
-                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + oneLineBoxH),
-                    8f,
-                    8f,
-                    strokePaint
-                )
-                val noScanOneLine = when (language) {
-                    AppLanguage.AR -> "لم يتم إجراء فحص إلكتروني للكمبيوتر (OBD2) خلال هذه المعاينة (فحص يدوي وبصري فقط)."
-                    AppLanguage.FR -> "Aucun scan OBD2 n'a été effectué lors de cette inspection (contrôle visuel et mécanique uniquement)."
-                    AppLanguage.EN -> "No OBD2 electronic scan was performed during this inspection (visual and mechanical check only)."
-                }
-                drawTextBlock(canvas, obdSectionTitle, sectionHeadingPaint, MARGIN_H + 10f, yPos + 5f, (CONTENT_WIDTH - 20f).toInt(), isRtl)
-                drawTextBlock(canvas, noScanOneLine, bodyRegularPaint, MARGIN_H + 10f, yPos + 20f, (CONTENT_WIDTH - 20f).toInt(), isRtl)
-            }
-            yPos += oneLineBoxH + 10f
-        } else {
-            val statusLines = listOf(
-                when (language) {
-                    AppLanguage.AR -> "• الاتصال بالكمبيوتر: ${obd.getConnectionStatusText(language)}"
-                    AppLanguage.FR -> "• Connexion calculateur : ${obd.getConnectionStatusText(language)}"
-                    AppLanguage.EN -> "• ECU connection: ${obd.getConnectionStatusText(language)}"
-                },
-                when (language) {
-                    AppLanguage.AR -> "• حالة مسح الذاكرة الحديث: ${obd.getClearedCodesText(language)}"
-                    AppLanguage.FR -> "• État d'effacement de la mémoire : ${obd.getClearedCodesText(language)}"
-                    AppLanguage.EN -> "• Cleared-codes finding: ${obd.getClearedCodesText(language)}"
-                },
-                when (language) {
-                    AppLanguage.AR -> "• لمبة المحرك (Check Engine): ${obd.getCheckEngineLightText(language)}"
-                    AppLanguage.FR -> "• Voyant Check-Engine : ${obd.getCheckEngineLightText(language)}"
-                    AppLanguage.EN -> "• Check-Engine light: ${obd.getCheckEngineLightText(language)}"
-                },
-                when (language) {
-                    AppLanguage.AR -> "• مقارنة رقم الشاسيه الإلكتروني (09 02): ${obd.getChassisComparisonText(language)}"
-                    AppLanguage.FR -> "• Comparaison N° châssis ECU (09 02) : ${obd.getChassisComparisonText(language)}"
-                    AppLanguage.EN -> "• ECU VIN comparison (09 02): ${obd.getChassisComparisonText(language)}"
-                }
-            )
-            val dtcExplanationLines = if (obd.faultCodeDetails.isNotEmpty()) {
-                obd.faultCodeDetails.map { dtc ->
-                    "• [${dtc.code} — ${dtc.dtcType.getLabel(language)}] ${dtc.getTitle(language)} : ${dtc.getExplanation(language)}"
-                }
+                yPos += emptyProbHeight + 10f
             } else {
-                listOf(
-                    when (language) {
-                        AppLanguage.AR -> "• أكواد الأعطال: ${obd.getFaultCodesText(language)}"
-                        AppLanguage.FR -> "• Codes défauts : ${obd.getFaultCodesText(language)}"
-                        AppLanguage.EN -> "• Fault codes: ${obd.getFaultCodesText(language)}"
-                    }
-                )
-            }
+                drawProblemsTableHeader()
 
-            val combinedObdText = (statusLines + dtcExplanationLines).joinToString("\n")
-            val obdTextW = (CONTENT_WIDTH - 24f).toInt()
-            val obdTextH = measureTextHeight(combinedObdText, bodyRegularPaint, obdTextW, isRtl)
-            val liveRowsCount = obd.liveReadings.size
-            val liveSectionH = if (liveRowsCount > 0) (20f + liveRowsCount * 16f) else 0f
-            val obdCardH = 28f + obdTextH + liveSectionH + 10f
+                for ((rowIdx, prob) in allProblems.withIndex()) {
+                    val itemText = "${prob.getQuestion(language)}\n(${prob.getSectionTitle(language)})"
+                    // Clean internal auto-answer prefix if present so the user's note looks clean
+                    val cleanNote = prob.buyerNote
+                        .replace(com.example.ui.viewmodel.FahsViewModel.OBD_AUTO_ANSWER_TAG, "")
+                        .trim()
+                        .ifBlank { "—" }
 
-            ensureSpace(obdCardH + 10f)
-            if (!dryRun) {
-                fillPaint.color = if (obd.hasCriticalAlert) COLOR_RED_BAND_BG else COLOR_EMERALD_50
-                canvas.drawRoundRect(
-                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + obdCardH),
-                    10f,
-                    10f,
-                    fillPaint
-                )
-                strokePaint.color = if (obd.hasCriticalAlert) COLOR_RED_BAND_BORDER else COLOR_EMERALD_600
-                canvas.drawRoundRect(
-                    RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + obdCardH),
-                    10f,
-                    10f,
-                    strokePaint
-                )
-
-                drawTextBlock(canvas, obdSectionTitle, sectionHeadingPaint, MARGIN_H + 12f, yPos + 7f, obdTextW, isRtl)
-                val drawnH = drawTextBlock(canvas, combinedObdText, bodyRegularPaint, MARGIN_H + 12f, yPos + 24f, obdTextW, isRtl)
-
-                if (obd.liveReadings.isNotEmpty()) {
-                    var liveY = yPos + 28f + drawnH
-                    val liveHeader = when (language) {
-                        AppLanguage.AR -> "القراءات الحية المسجلة (مع مؤشر الحالة):"
-                        AppLanguage.FR -> " Valeurs en direct mesurées (avec marqueur d'état) :"
-                        AppLanguage.EN -> "Live Engine Readings (with status markers):"
-                    }
-                    drawTextBlock(canvas, liveHeader, bodyBoldPaint, MARGIN_H + 12f, liveY, obdTextW, isRtl)
-                    liveY += 16f
-
-                    for (gauge in obd.liveReadings) {
-                        val markerColor = when (gauge.status) {
-                            "GREEN" -> COLOR_GREEN_BAND_BORDER
-                            "ORANGE" -> COLOR_ORANGE_BAND_BORDER
-                            "RED" -> COLOR_RED_BAND_BORDER
-                            else -> COLOR_SLATE_500
-                        }
-                        val markerTag = when (gauge.status) {
-                            "GREEN" -> if (language == AppLanguage.AR) "طبيعي" else "OK"
-                            "ORANGE" -> if (language == AppLanguage.AR) "انتباه" else "WARN"
-                            "RED" -> if (language == AppLanguage.AR) "خطر" else "ALERT"
-                            else -> if (language == AppLanguage.AR) "غير متوفر" else "N/A"
-                        }
-                        val normalLabel = when (language) {
-                            AppLanguage.AR -> "المدى الطبيعي"
-                            AppLanguage.FR -> "Normal"
-                            AppLanguage.EN -> "Normal"
-                        }
-                        val dotX = mirrorX(MARGIN_H + 16f, 8f, isRtl)
-                        fillPaint.color = markerColor
-                        canvas.drawCircle(dotX + 4f, liveY + 6f, 4f, fillPaint)
-
-                        val rowText = if (isRtl) {
-                            "${gauge.getName(language)} : \u200E${gauge.valueText}\u200E ($normalLabel : \u200E${gauge.normalRangeText}\u200E) [$markerTag]"
-                        } else {
-                            "${gauge.getName(language)} : ${gauge.valueText} ($normalLabel : ${gauge.normalRangeText}) [$markerTag]"
-                        }
-                        val rowTextX = mirrorX(MARGIN_H + 30f, CONTENT_WIDTH - 42f, isRtl)
-                        drawTextBlock(canvas, rowText, smallBoldPaint, rowTextX, liveY, (CONTENT_WIDTH - 42f).toInt(), isRtl)
-                        liveY += 15f
-                    }
-                }
-            }
-            yPos += obdCardH + 10f
-        }
-
-        // =========================================================================
-        // 8. NOT CHECKED (Skipped items, with critical ones highlighted)
-        // =========================================================================
-        val uncheckedHeader = when (language) {
-            AppLanguage.AR -> "نقاط لم يتم فحصها (${report.uncheckedItems.size} من أصل ${report.totalApplicableCount})"
-            AppLanguage.FR -> "Points non vérifiés (${report.uncheckedItems.size} sur ${report.totalApplicableCount})"
-            AppLanguage.EN -> "Not Checked (${report.uncheckedItems.size} of ${report.totalApplicableCount})"
-        }
-        ensureSpace(36f)
-        if (!dryRun) {
-            drawTextBlock(canvas, uncheckedHeader, sectionHeadingPaint, MARGIN_H, yPos, CONTENT_WIDTH.toInt(), isRtl)
-        }
-        yPos += 18f
-
-        if (report.uncheckedItems.isEmpty()) {
-            val allCheckedH = 24f
-            ensureSpace(allCheckedH + 8f)
-            if (!dryRun) {
-                val allCheckedMsg = when (language) {
-                    AppLanguage.AR -> "✓ تم فحص جميع النقاط المبرمجة لهذا الموديل بالكامل (0 غير مفحوص)."
-                    AppLanguage.FR -> "✓ Tous les points de contrôle prévus ont été vérifiés (0 point ignoré)."
-                    AppLanguage.EN -> "✓ All scheduled checklist items were checked (0 skipped items)."
-                }
-                drawTextBlock(canvas, allCheckedMsg, bodyRegularPaint, MARGIN_H + 8f, yPos, (CONTENT_WIDTH - 16f).toInt(), isRtl)
-            }
-            yPos += allCheckedH + 8f
-        } else {
-            val orderedUnchecked = report.uncheckedCriticalItems +
-                report.uncheckedItems.filter { it.severity != ItemSeverity.CRITICAL }
-
-            for (item in orderedUnchecked) {
-                val isCrit = item.severity == ItemSeverity.CRITICAL
-                val critBadge = if (isCrit) {
-                    when (language) {
-                        AppLanguage.AR -> "[حرج — لم يُفحص] "
-                        AppLanguage.FR -> "[CRITIQUE — NON VÉRIFIÉ] "
-                        AppLanguage.EN -> "[CRITICAL — NOT CHECKED] "
-                    }
-                } else "• "
-                val lineStr = "$critBadge${item.getSectionTitle(language)} : ${item.getQuestion(language)}"
-                val linePaint = if (isCrit) textPaint(8.8f, COLOR_RED_BAND_TEXT, bold = true) else bodyRegularPaint
-                val itemH = measureTextHeight(lineStr, linePaint, (CONTENT_WIDTH - 20f).toInt(), isRtl) + if (isCrit) 10f else 4f
-
-                ensureSpace(itemH + 4f)
-                if (!dryRun) {
-                    if (isCrit) {
-                        fillPaint.color = COLOR_RED_BAND_BG
-                        canvas.drawRoundRect(
-                            RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + itemH),
-                            6f,
-                            6f,
-                            fillPaint
-                        )
-                        strokePaint.color = COLOR_RED_BAND_BORDER
-                        canvas.drawRoundRect(
-                            RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + itemH),
-                            6f,
-                            6f,
-                            strokePaint
-                        )
-                        drawTextBlock(canvas, lineStr, linePaint, MARGIN_H + 10f, yPos + 4f, (CONTENT_WIDTH - 20f).toInt(), isRtl)
+                    val approxCostText = if (prob.maxCostDzd > 0) {
+                        "${ReportEngine.formatDzd(prob.minCostDzd)} – ${ReportEngine.formatDzd(prob.maxCostDzd)}"
                     } else {
-                        drawTextBlock(canvas, lineStr, linePaint, MARGIN_H + 8f, yPos + 1f, (CONTENT_WIDTH - 16f).toInt(), isRtl)
+                        when (language) {
+                            AppLanguage.AR -> "تُسعّر عند الميكانيكي"
+                            AppLanguage.FR -> "À chiffrer (mécanicien)"
+                            AppLanguage.EN -> "Mechanic quote"
+                        }
                     }
+
+                    val hasRealPhoto = InspectionPhotoHelper.isRealStoredPhoto(prob.photoUri)
+                    val hCol1 = measureTextHeight(itemText, bodyBoldPaint, (col1W - 10f).toInt(), isRtl)
+                    val hCol3 = measureTextHeight(cleanNote, bodyRegularPaint, (col3W - 10f).toInt(), isRtl)
+                    val hCol4 = measureTextHeight(approxCostText, smallBoldPaint, (col4W - 10f).toInt(), isRtl)
+                    val photoMinH = if (hasRealPhoto) 48f else 18f
+                    val rowHeight = (maxOf(hCol1, hCol3, hCol4, photoMinH) + 12f).coerceAtLeast(30f)
+
+                    // Never split a table row across two pages: if it doesn't fit, start a new page and redraw table header
+                    val startedNewPage = ensureSpace(rowHeight + 4f)
+                    if (startedNewPage) {
+                        drawProblemsTableHeader()
+                    }
+
+                    if (!dryRun) {
+                        val rowBg = when {
+                            prob.severity == ItemSeverity.CRITICAL -> Color.rgb(254, 242, 242)
+                            rowIdx % 2 == 1 -> COLOR_SLATE_50
+                            else -> Color.WHITE
+                        }
+                        val rowRect = RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + rowHeight)
+                        fillPaint.color = rowBg
+                        canvas.drawRect(rowRect, fillPaint)
+                        strokePaint.color = COLOR_SLATE_200
+                        canvas.drawRect(rowRect, strokePaint)
+
+                        val x1 = mirrorX(MARGIN_H, col1W, isRtl)
+                        val x2 = mirrorX(MARGIN_H + col1W, col2W, isRtl)
+                        val x3 = mirrorX(MARGIN_H + col1W + col2W, col3W, isRtl)
+                        val x4 = mirrorX(MARGIN_H + col1W + col2W + col3W, col4W, isRtl)
+                        val x5 = mirrorX(MARGIN_H + col1W + col2W + col3W + col4W, col5W, isRtl)
+
+                        // 1. Item
+                        drawTextBlock(canvas, itemText, bodyBoldPaint, x1 + 5f, yPos + 5f, (col1W - 10f).toInt(), isRtl)
+
+                        // 2. Severity pill badge
+                        val (sevBg, sevTextCol) = when (prob.severity) {
+                            ItemSeverity.CRITICAL -> COLOR_RED_BAND_BG to COLOR_RED_BAND_TEXT
+                            ItemSeverity.IMPORTANT -> COLOR_ORANGE_BAND_BG to COLOR_ORANGE_BAND_TEXT
+                            ItemSeverity.MINOR -> COLOR_SLATE_200 to COLOR_SLATE_800
+                        }
+                        val pillRect = RectF(x2 + 4f, yPos + 6f, x2 + col2W - 4f, yPos + 22f)
+                        fillPaint.color = sevBg
+                        canvas.drawRoundRect(pillRect, 5f, 5f, fillPaint)
+                        val sevPaint = textPaint(7.6f, sevTextCol, bold = true).apply {
+                            textAlign = Paint.Align.CENTER
+                        }
+                        canvas.drawText(
+                            prob.severity.getLabel(language),
+                            pillRect.centerX(),
+                            pillRect.centerY() + 2.8f,
+                            sevPaint
+                        )
+
+                        // 3. User's note
+                        drawTextBlock(canvas, cleanNote, bodyRegularPaint, x3 + 5f, yPos + 5f, (col3W - 10f).toInt(), isRtl)
+
+                        // 4. Approx repair cost
+                        drawTextBlock(canvas, approxCostText, smallBoldPaint, x4 + 5f, yPos + 5f, (col4W - 10f).toInt(), isRtl)
+
+                        // 5. Photo thumbnail (resized & JPEG-compressed for WhatsApp)
+                        val thumb = if (hasRealPhoto) {
+                            InspectionPhotoHelper.loadCompressedPdfThumbnailBitmap(prob.photoUri, maxDimensionPx = 160, jpegQuality = 72)
+                        } else null
+
+                        if (thumb != null) {
+                            val maxThumbW = col5W - 10f
+                            val maxThumbH = rowHeight - 10f
+                            val aspect = thumb.width.toFloat().coerceAtLeast(1f) / thumb.height.toFloat().coerceAtLeast(1f)
+                            var drawW = maxThumbW
+                            var drawH = drawW / aspect
+                            if (drawH > maxThumbH) {
+                                drawH = maxThumbH
+                                drawW = drawH * aspect
+                            }
+                            val thumbLeft = x5 + (col5W - drawW) / 2f
+                            val thumbTop = yPos + (rowHeight - drawH) / 2f
+                            canvas.drawBitmap(thumb, null, RectF(thumbLeft, thumbTop, thumbLeft + drawW, thumbTop + drawH), null)
+                        } else {
+                            drawTextBlock(canvas, "—", smallLabelPaint, x5 + 10f, yPos + 6f, (col5W - 16f).toInt(), isRtl)
+                        }
+                    }
+                    yPos += rowHeight
                 }
-                yPos += itemH + 3f
+                yPos += 10f
             }
-            yPos += 6f
         }
 
         // =========================================================================
-        // 9. NEGOTIATION TOTAL (Highlighted box)
+        // 6c. NOT CHECKED (Skipped items, with critical ones highlighted)
+        // =========================================================================
+        if (report.isVisualCheckDone) {
+            val uncheckedHeader = when (language) {
+                AppLanguage.AR -> "نقاط لم يتم فحصها (${report.uncheckedItems.size} من أصل ${report.totalApplicableCount})"
+                AppLanguage.FR -> "Points non vérifiés (${report.uncheckedItems.size} sur ${report.totalApplicableCount})"
+                AppLanguage.EN -> "Not Checked (${report.uncheckedItems.size} of ${report.totalApplicableCount})"
+            }
+            ensureSpace(36f)
+            if (!dryRun) {
+                drawTextBlock(canvas, uncheckedHeader, sectionHeadingPaint, MARGIN_H, yPos, CONTENT_WIDTH.toInt(), isRtl)
+            }
+            yPos += 18f
+
+            if (report.uncheckedItems.isEmpty()) {
+                val allCheckedH = 24f
+                ensureSpace(allCheckedH + 8f)
+                if (!dryRun) {
+                    val allCheckedMsg = when (language) {
+                        AppLanguage.AR -> "✓ تم فحص جميع النقاط المبرمجة لهذا الموديل بالكامل (0 غير مفحوص)."
+                        AppLanguage.FR -> "✓ Tous les points de contrôle prévus ont été vérifiés (0 point ignoré)."
+                        AppLanguage.EN -> "✓ All scheduled checklist items were checked (0 skipped items)."
+                    }
+                    drawTextBlock(canvas, allCheckedMsg, bodyRegularPaint, MARGIN_H + 8f, yPos, (CONTENT_WIDTH - 16f).toInt(), isRtl)
+                }
+                yPos += allCheckedH + 8f
+            } else {
+                val orderedUnchecked = report.uncheckedCriticalItems +
+                    report.uncheckedItems.filter { it.severity != ItemSeverity.CRITICAL }
+
+                for (item in orderedUnchecked) {
+                    val isCrit = item.severity == ItemSeverity.CRITICAL
+                    val critBadge = if (isCrit) {
+                        when (language) {
+                            AppLanguage.AR -> "[حرج — لم يُفحص] "
+                            AppLanguage.FR -> "[CRITIQUE — NON VÉRIFIÉ] "
+                            AppLanguage.EN -> "[CRITICAL — NOT CHECKED] "
+                        }
+                    } else "• "
+                    val lineStr = "$critBadge${item.getSectionTitle(language)} : ${item.getQuestion(language)}"
+                    val linePaint = if (isCrit) textPaint(8.8f, COLOR_RED_BAND_TEXT, bold = true) else bodyRegularPaint
+                    val itemH = measureTextHeight(lineStr, linePaint, (CONTENT_WIDTH - 20f).toInt(), isRtl) + if (isCrit) 10f else 4f
+
+                    ensureSpace(itemH + 4f)
+                    if (!dryRun) {
+                        if (isCrit) {
+                            fillPaint.color = COLOR_RED_BAND_BG
+                            canvas.drawRoundRect(
+                                RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + itemH),
+                                6f,
+                                6f,
+                                fillPaint
+                            )
+                            strokePaint.color = COLOR_RED_BAND_BORDER
+                            canvas.drawRoundRect(
+                                RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + itemH),
+                                6f,
+                                6f,
+                                strokePaint
+                            )
+                            drawTextBlock(canvas, lineStr, linePaint, MARGIN_H + 10f, yPos + 4f, (CONTENT_WIDTH - 20f).toInt(), isRtl)
+                        } else {
+                            drawTextBlock(canvas, lineStr, linePaint, MARGIN_H + 8f, yPos + 1f, (CONTENT_WIDTH - 16f).toInt(), isRtl)
+                        }
+                    }
+                    yPos += itemH + 3f
+                }
+                yPos += 6f
+            }
+        }
+
+        // =========================================================================
+        // 7. WHAT TO ASK A MECHANIC BEFORE YOU BUY & POINTS TO DISCUSS ON THE PRICE
+        // =========================================================================
+        val mechanicTitle = report.getWhatToAskMechanicTitle(language)
+        val mechanicQuestions = report.getWhatToAskMechanicItems(language)
+        val mechanicBodyText = mechanicQuestions.joinToString("\n") { "• $it" }
+        val mechanicTextW = (CONTENT_WIDTH - 24f).toInt()
+        val mechanicBodyH = measureTextHeight(mechanicBodyText, bodyRegularPaint, mechanicTextW, isRtl)
+        val mechanicBoxH = 26f + mechanicBodyH + 10f
+
+        ensureSpace(mechanicBoxH + 10f)
+        if (!dryRun) {
+            fillPaint.color = COLOR_SLATE_50
+            canvas.drawRoundRect(
+                RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + mechanicBoxH),
+                10f,
+                10f,
+                fillPaint
+            )
+            strokePaint.color = COLOR_SLATE_300
+            canvas.drawRoundRect(
+                RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + mechanicBoxH),
+                10f,
+                10f,
+                strokePaint
+            )
+            drawTextBlock(canvas, mechanicTitle, sectionHeadingPaint, MARGIN_H + 12f, yPos + 7f, mechanicTextW, isRtl)
+            drawTextBlock(canvas, mechanicBodyText, bodyRegularPaint, MARGIN_H + 12f, yPos + 23f, mechanicTextW, isRtl)
+        }
+        yPos += mechanicBoxH + 10f
+
+        val pricePointsTitle = report.getPointsToDiscussOnPriceTitle(language)
+        val pricePoints = report.getPointsToDiscussOnPriceItems(language)
+        val pricePointsBodyText = pricePoints.joinToString("\n") { "• $it" }
+        val pricePointsBodyH = measureTextHeight(pricePointsBodyText, bodyRegularPaint, mechanicTextW, isRtl)
+        val pricePointsBoxH = 26f + pricePointsBodyH + 10f
+
+        ensureSpace(pricePointsBoxH + 10f)
+        if (!dryRun) {
+            fillPaint.color = Color.WHITE
+            canvas.drawRoundRect(
+                RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + pricePointsBoxH),
+                10f,
+                10f,
+                fillPaint
+            )
+            strokePaint.color = COLOR_SLATE_300
+            canvas.drawRoundRect(
+                RectF(MARGIN_H, yPos, PAGE_WIDTH - MARGIN_H, yPos + pricePointsBoxH),
+                10f,
+                10f,
+                strokePaint
+            )
+            drawTextBlock(canvas, pricePointsTitle, sectionHeadingPaint, MARGIN_H + 12f, yPos + 7f, mechanicTextW, isRtl)
+            drawTextBlock(canvas, pricePointsBodyText, bodyRegularPaint, MARGIN_H + 12f, yPos + 23f, mechanicTextW, isRtl)
+        }
+        yPos += pricePointsBoxH + 10f
+
+        // =========================================================================
+        // 8. NEGOTIATION TOTAL (Highlighted box)
         // =========================================================================
         val effectiveAskingMillions = sellerAskingMillions?.takeIf { it > 0.0 }
             ?: report.inspection.sellerAskingPriceMillions.takeIf { it > 0.0 }

@@ -112,8 +112,10 @@ fun ObdScanResultSection(
     onMilKeyOnAnswerChange: ((MilKeyOnUserAnswer) -> Unit)? = null,
     hasActiveInspection: Boolean,
     onSaveToInspection: () -> Unit,
+    onSaveAndGetReport: (() -> Unit)? = null,
     onAddCarModelForTips: (() -> Unit)? = null,
     onContinueThreeMinuteVisualCheck: (() -> Unit)? = null,
+    onStartFullManualInspection: (() -> Unit)? = null,
     isDeveloperModeEnabled: Boolean = false,
     onExportRawLog: () -> Unit = {}
 ) {
@@ -125,6 +127,14 @@ fun ObdScanResultSection(
             scanResult = scanResult,
             milKeyOnAnswer = milKeyOnAnswer,
             ecuVinComparison = ecuVinComparison
+        )
+    }
+    val verdictSummaryLine = remember(scanResult, milKeyOnAnswer, ecuVinComparison, language) {
+        ObdDiagnosticEngine.buildVerdictSummaryLine(
+            scanResult = scanResult,
+            milKeyOnAnswer = milKeyOnAnswer,
+            ecuVinComparison = ecuVinComparison,
+            language = language
         )
     }
 
@@ -327,19 +337,44 @@ fun ObdScanResultSection(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(14.dp)
-                                .clip(CircleShape)
-                                .background(verdictDotColor)
-                        )
+                        val dialGlyph = when (verdictLevel) {
+                            AutomaticScanVerdictLevel.NO_PROBLEM_DETECTED -> "✓"
+                            AutomaticScanVerdictLevel.POINTS_TO_CHECK,
+                            AutomaticScanVerdictLevel.SERIOUS_WARNING -> "!"
+                            AutomaticScanVerdictLevel.INCOMPLETE -> "?"
+                        }
+                        Surface(
+                            modifier = Modifier.size(38.dp),
+                            shape = CircleShape,
+                            color = verdictDotColor.copy(alpha = 0.24f),
+                            border = BorderStroke(2.dp, verdictDotColor)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = dialGlyph,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = FahsInstrumentText
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = verdictTitle,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = FahsInstrumentText
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = verdictTitle,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = FahsInstrumentText
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = verdictSummaryLine,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = FahsInstrumentText.copy(alpha = 0.88f),
+                                lineHeight = 18.sp,
+                                modifier = Modifier.testTag("obd_verdict_summary_line")
+                            )
+                        }
                     }
                 }
 
@@ -1366,10 +1401,10 @@ fun ObdScanResultSection(
         }
 
         // =========================================================================
-        // 3. AUTO-ANSWERED CHECKLIST PREVIEW & ACTIONS (Never shown for simulated data)
+        // 3. AUTO-ANSWERED CHECKLIST PREVIEW & 3 NEXT-STEP ACTIONS (Never shown for simulated data)
         // =========================================================================
         if (!scanResult.isSimulated) {
-            if (hasActiveInspection && scanResult.isCommunicationSuccess) {
+            if (scanResult.isCommunicationSuccess) {
                 ProposedScanChecklistAnswersCard(
                     scanResult = scanResult,
                     milBulbLitOnDashboard = milBulbLitOnDashboard,
@@ -1379,32 +1414,96 @@ fun ObdScanResultSection(
                 )
             }
 
-            if (hasActiveInspection) {
-                SaveObdToInspectionButton(
-                    language = language,
-                    onClick = onSaveToInspection
+            // 1. Primary (highlighted): Add a 3-minute visual check (10 points)
+            if (onContinueThreeMinuteVisualCheck != null) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(onClick = onContinueThreeMinuteVisualCheck)
+                        .testTag("continue_visual_check_after_scan_btn"),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primary
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = when (language) {
+                                AppLanguage.AR -> "أضف فحصاً بصرياً في 3 دقائق (10 نقاط)"
+                                AppLanguage.FR -> "Ajouter un contrôle visuel de 3 min (10 points)"
+                                AppLanguage.EN -> "Add a 3-minute visual check (10 points)"
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = when (language) {
+                                AppLanguage.AR -> "لا يرى الفحص التلقائي هذه النقاط العشر. افحصها بنفسك."
+                                AppLanguage.FR -> "Le scan ne voit pas ces dix points. Vérifiez-les vous-même."
+                                AppLanguage.EN -> "The scan cannot see these ten points. Check them yourself."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.90f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            // 2. Secondary: Save and get report
+            OutlinedButton(
+                onClick = onSaveAndGetReport ?: onSaveToInspection,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .testTag("save_obd_to_inspection_btn"),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Save,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = when (language) {
+                        AppLanguage.AR -> "حفظ والحصول على التقرير"
+                        AppLanguage.FR -> "Enregistrer et obtenir le rapport"
+                        AppLanguage.EN -> "Save and get report"
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
-            if (onContinueThreeMinuteVisualCheck != null) {
-                OutlinedButton(
-                    onClick = onContinueThreeMinuteVisualCheck,
+            // 3. Tertiary: Full manual inspection
+            if (onStartFullManualInspection != null) {
+                TextButton(
+                    onClick = onStartFullManualInspection,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
-                        .testTag("continue_visual_check_after_scan_btn"),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        .height(48.dp)
+                        .testTag("start_full_manual_inspection_after_scan_btn"),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
                         text = when (language) {
-                            AppLanguage.AR -> "متابعة الفحص البصري السريع (الهيكل، الإطارات، الوثائق)"
-                            AppLanguage.FR -> "Continuer avec le contrôle visuel de 3 min (carrosserie, pneus, papiers)"
-                            AppLanguage.EN -> "Continue with 3-minute visual check (bodywork, tyres, papers)"
+                            AppLanguage.AR -> "الفحص اليدوي الكامل (مع ملء نقاط الفحص التلقائي)"
+                            AppLanguage.FR -> "Inspection manuelle complète"
+                            AppLanguage.EN -> "Full manual inspection"
                         },
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }

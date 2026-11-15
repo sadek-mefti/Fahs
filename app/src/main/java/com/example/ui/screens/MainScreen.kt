@@ -64,6 +64,7 @@ fun MainScreen(
     val carSelectionReturnTab by viewModel.carSelectionReturnTab.collectAsStateWithLifecycle()
     val autoConnectRememberedDongle by viewModel.autoConnectRememberedDongle.collectAsStateWithLifecycle()
     val inspections by viewModel.inspections.collectAsStateWithLifecycle()
+    val activeInspectionId by viewModel.activeInspectionId.collectAsStateWithLifecycle()
     val activeInspection by viewModel.activeInspection.collectAsStateWithLifecycle()
     val activeInspectionAnswers by viewModel.activeInspectionAnswers.collectAsStateWithLifecycle()
     val completedCount by viewModel.completedCount.collectAsStateWithLifecycle()
@@ -408,7 +409,7 @@ fun MainScreen(
                                     viewModel.openReportForActiveInspection()
                                 }
                             )
-                        } else {
+                        } else if (activeInspectionId == null) {
                             viewModel.selectTab(NavTab.INSPECTIONS)
                         }
                     }
@@ -438,7 +439,7 @@ fun MainScreen(
                                     }
                                 }
                             )
-                        } else {
+                        } else if (activeInspectionId == null) {
                             viewModel.selectTab(NavTab.INSPECTIONS)
                         }
                     }
@@ -543,16 +544,57 @@ fun MainScreen(
                                     milBulbLitOnDashboard = milBulbLit,
                                     ecuVinComparison = ecuVinComparison,
                                     returnToChecklist = false,
-                                    milKeyOnAnswer = milKeyOnAnswer
+                                    milKeyOnAnswer = milKeyOnAnswer,
+                                    targetTabAfterSave = NavTab.REPORT
                                 )
                                 scope.launch {
                                     val msg = when (currentLanguage) {
-                                        AppLanguage.AR -> "تم حفظ نتيجة الفحص في تقاريري"
-                                        AppLanguage.FR -> "Résultat du scan enregistré dans Mes rapports"
-                                        AppLanguage.EN -> "Scan result saved to My reports"
+                                        AppLanguage.AR -> "تم حفظ نتيجة الفحص وعرض التقرير"
+                                        AppLanguage.FR -> "Résultat du scan enregistré"
+                                        AppLanguage.EN -> "Scan result saved to report"
                                     }
                                     snackbarHostState.showSnackbar(msg)
                                 }
+                            },
+                            onSaveScanAndGetReport = { scanResult, milBulbLit, ecuVinComparison, milKeyOnAnswer ->
+                                viewModel.saveObdScanToActiveInspection(
+                                    scanResult = scanResult,
+                                    milBulbLitOnDashboard = milBulbLit,
+                                    ecuVinComparison = ecuVinComparison,
+                                    returnToChecklist = false,
+                                    milKeyOnAnswer = milKeyOnAnswer,
+                                    targetTabAfterSave = NavTab.REPORT
+                                )
+                                scope.launch {
+                                    val msg = when (currentLanguage) {
+                                        AppLanguage.AR -> "تم حفظ نتيجة الفحص وعرض التقرير"
+                                        AppLanguage.FR -> "Résultat du scan enregistré"
+                                        AppLanguage.EN -> "Scan result saved to report"
+                                    }
+                                    snackbarHostState.showSnackbar(msg)
+                                }
+                            },
+                            onStartThreeMinuteVisualCheckAfterScan = { scanResult, milBulbLit, ecuVinComparison, milKeyOnAnswer ->
+                                viewModel.saveObdScanToActiveInspection(
+                                    scanResult = scanResult,
+                                    milBulbLitOnDashboard = milBulbLit,
+                                    ecuVinComparison = ecuVinComparison,
+                                    returnToChecklist = true,
+                                    milKeyOnAnswer = milKeyOnAnswer,
+                                    targetTabAfterSave = NavTab.CHECKLIST_WIZARD,
+                                    switchToFullMode = false
+                                )
+                            },
+                            onStartFullManualInspectionAfterScan = { scanResult, milBulbLit, ecuVinComparison, milKeyOnAnswer ->
+                                viewModel.saveObdScanToActiveInspection(
+                                    scanResult = scanResult,
+                                    milBulbLitOnDashboard = milBulbLit,
+                                    ecuVinComparison = ecuVinComparison,
+                                    returnToChecklist = true,
+                                    milKeyOnAnswer = milKeyOnAnswer,
+                                    targetTabAfterSave = NavTab.CHECKLIST_WIZARD,
+                                    switchToFullMode = true
+                                )
                             },
                             onConfirmTestDriveSummary = { summary ->
                                 viewModel.applyConfirmedTestDriveSummary(

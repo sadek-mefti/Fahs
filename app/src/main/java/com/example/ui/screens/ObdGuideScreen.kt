@@ -112,6 +112,9 @@ fun ObdGuideScreen(
     onAddCarModelForTips: (() -> Unit)? = null,
     onDetectedEcuVin: (String?) -> Unit = {},
     onSaveScanToInspection: (ObdScanResult, Boolean, EcuVinComparisonChoice, MilKeyOnUserAnswer) -> Unit = { _, _, _, _ -> },
+    onSaveScanAndGetReport: ((ObdScanResult, Boolean, EcuVinComparisonChoice, MilKeyOnUserAnswer) -> Unit)? = null,
+    onStartThreeMinuteVisualCheckAfterScan: ((ObdScanResult, Boolean, EcuVinComparisonChoice, MilKeyOnUserAnswer) -> Unit)? = null,
+    onStartFullManualInspectionAfterScan: ((ObdScanResult, Boolean, EcuVinComparisonChoice, MilKeyOnUserAnswer) -> Unit)? = null,
     onConfirmTestDriveSummary: (TestDriveMonitoringSummary) -> Unit = {},
     onStartThreeMinuteVisualCheck: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -515,8 +518,37 @@ fun ObdGuideScreen(
                                     milKeyOnAnswer
                                 )
                             },
+                            onSaveAndGetReport = if (onSaveScanAndGetReport != null) {
+                                {
+                                    onSaveScanAndGetReport(
+                                        realScan,
+                                        milBulbLitOnDashboard,
+                                        ecuVinComparison,
+                                        milKeyOnAnswer
+                                    )
+                                }
+                            } else null,
                             onAddCarModelForTips = if (carHeaderLabel.isBlank()) onAddCarModelForTips else null,
-                            onContinueThreeMinuteVisualCheck = onStartThreeMinuteVisualCheck,
+                            onContinueThreeMinuteVisualCheck = if (onStartThreeMinuteVisualCheckAfterScan != null) {
+                                {
+                                    onStartThreeMinuteVisualCheckAfterScan(
+                                        realScan,
+                                        milBulbLitOnDashboard,
+                                        ecuVinComparison,
+                                        milKeyOnAnswer
+                                    )
+                                }
+                            } else onStartThreeMinuteVisualCheck,
+                            onStartFullManualInspection = if (onStartFullManualInspectionAfterScan != null) {
+                                {
+                                    onStartFullManualInspectionAfterScan(
+                                        realScan,
+                                        milBulbLitOnDashboard,
+                                        ecuVinComparison,
+                                        milKeyOnAnswer
+                                    )
+                                }
+                            } else null,
                             isDeveloperModeEnabled = isDeveloperModeEnabled,
                             onExportRawLog = {
                                 val carCtx = if (carHeaderLabel.isNotBlank()) {

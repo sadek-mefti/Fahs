@@ -48,17 +48,39 @@ object ChecklistEngine {
     }
 
     /**
+     * Part 4: The 3-Minute Visual Check (10 Manual Points).
+     * Returns strictly the 10 ordered points covering the most important things an OBD scan cannot see.
+     */
+    fun buildTenPointVisualCheck(gearboxType: String): List<ChecklistItemDefinition> {
+        val normalizedGearbox = gearboxType.uppercase().trim()
+        val isAutoCar = normalizedGearbox.contains("AUTO") ||
+            normalizedGearbox.contains("DSG") ||
+            normalizedGearbox.contains("EDC") ||
+            normalizedGearbox.contains("CVT") ||
+            normalizedGearbox.contains("BVA")
+        val gearboxPointId = if (isAutoCar) "drive_auto_gearbox_shifts" else "drive_manual_clutch_slip"
+
+        val orderedIds = listOf(
+            "doc_vin_three_way_match",
+            "doc_carte_grise_owner",
+            "bonnet_chassis_longerons",
+            "ext_paint_respray_mastic",
+            "ext_tires_wear_date",
+            "bonnet_oil_cap_mayo",
+            "int_airbag_abs_lights_key_on",
+            "start_exhaust_smoke_color",
+            gearboxPointId,
+            "drive_steering_brakes_straight"
+        )
+        val byId = fullLibrary.associateBy { it.id }
+        return orderedIds.mapNotNull { byId[it] }
+    }
+
+    /**
      * Filters and orders checklist items based on the exact car configuration:
-     * - Exact Model & Generation for model weak points (no brand-wide shortcuts)
-     * - Engine, Fuel type (ESSENCE, DIESEL, GPL, HYBRIDE) & Gearbox type (MANUELLE, AUTOMATIQUE, DSG, etc.)
-     * - Year / Age (minYear, maxYear, minAgeYears)
-     * - Odometer Mileage band (minMileageKm, maxMileageKm)
-     * - Turbocharger (requiresTurbo)
-     * - Four-Wheel Drive / AWD (requiresFourWheelDrive)
-     * - Body type (CITADINE, BERLINE, SUV, UTILITAIRE, PICKUP)
-     * - Quick Check vs Full Inspection
-     * - "Other car" path: cars missing from the catalogue still get a fully adapted checklist
-     *   from fuel, gearbox, year, body type, mileage, turbo, and 4x4.
+     * - When isQuickMode == true: returns strictly the 10-point 3-Minute Visual Check (Part 4).
+     * - When isQuickMode == false: returns the full adaptive checklist based on model, generation,
+     *   engine, fuel, gearbox, year/age, mileage, turbo, 4x4, and body type.
      */
     fun buildChecklistForCar(
         brand: String,
@@ -74,6 +96,10 @@ object ChecklistEngine {
         isFourWheelDrive: Boolean? = null,
         bodyType: String = ""
     ): List<ChecklistItemDefinition> {
+        if (isQuickMode) {
+            return buildTenPointVisualCheck(gearboxType)
+        }
+
         val normalizedFuel = fuelType.uppercase().trim()
         val normalizedGearbox = gearboxType.uppercase().trim()
         val cleanBrand = brand.trim()
@@ -106,12 +132,7 @@ object ChecklistEngine {
         val carAgeYears = (REFERENCE_CURRENT_YEAR - effectiveYear).coerceAtLeast(0)
 
         return fullLibrary.filter { item ->
-            // 1. Quick Mode filter
-            if (isQuickMode && !item.includedInQuickCheck) {
-                return@filter false
-            }
-
-            // 2. Fuel condition
+            // 1. Fuel condition
             if (item.requiredFuels.isNotEmpty()) {
                 val fuelMatch = item.requiredFuels.any { req ->
                     normalizedFuel.contains(req.uppercase())

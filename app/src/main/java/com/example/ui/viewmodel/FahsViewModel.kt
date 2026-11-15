@@ -106,6 +106,9 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
     private val _activeInspectionId = MutableStateFlow<Long?>(null)
     val activeInspectionId: StateFlow<Long?> = _activeInspectionId.asStateFlow()
 
+    private val _optimisticActiveInspection = MutableStateFlow<InspectionEntity?>(null)
+    private val _optimisticAnswers = MutableStateFlow<List<ChecklistAnswerEntity>>(emptyList())
+
     private val _cloudUserEmail = MutableStateFlow<String?>(null)
     val cloudUserEmail: StateFlow<String?> = _cloudUserEmail.asStateFlow()
 
@@ -115,25 +118,39 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
     private val _isCloudSyncing = MutableStateFlow(false)
     val isCloudSyncing: StateFlow<Boolean> = _isCloudSyncing.asStateFlow()
 
-    val activeInspection: StateFlow<InspectionEntity?> = _activeInspectionId
-        .flatMapLatest { id ->
+    val activeInspection: StateFlow<InspectionEntity?> = kotlinx.coroutines.flow.combine(
+        _activeInspectionId.flatMapLatest { id ->
             if (id != null) repository.observeInspection(id) else flowOf(null)
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = null
-        )
+        },
+        _optimisticActiveInspection
+    ) { roomEntity, optimisticEntity ->
+        roomEntity ?: optimisticEntity
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = null
+    )
 
-    val activeInspectionAnswers: StateFlow<List<ChecklistAnswerEntity>> = _activeInspectionId
-        .flatMapLatest { id ->
+    val activeInspectionAnswers: StateFlow<List<ChecklistAnswerEntity>> = kotlinx.coroutines.flow.combine(
+        _activeInspectionId.flatMapLatest { id ->
             if (id != null) repository.getAnswers(id) else flowOf(emptyList())
+        },
+        _optimisticAnswers
+    ) { roomList, optimisticList ->
+        if (optimisticList.isEmpty()) {
+            roomList
+        } else {
+            val merged = roomList.associateBy { it.itemId }.toMutableMap()
+            for (opt in optimisticList) {
+                merged[opt.itemId] = opt
+            }
+            merged.values.toList()
         }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
 
     val inspections: StateFlow<List<InspectionEntity>> = repository.allInspections
         .stateIn(
@@ -165,6 +182,7 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
         )
 
     init {
+        com.example.domain.ObdVerdictThresholds.loadFromContext(application)
         refreshAuthState()
         viewModelScope.launch {
             shopSettingsRepository.refreshFromFirestore()
@@ -505,60 +523,68 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
             onReady()
             return
         }
+        val now = System.currentTimeMillis()
+        val lang = _currentLanguage.value
+        val dateLabel = VinWmiHelper.formatTimestampLabel(now, lang)
+        val detectedWmiBrand = _preselectedBrandFromVin.value
+        val brand = draft?.brand ?: detectedWmiBrand ?: when (lang) {
+            AppLanguage.AR -> "فحص"
+            AppLanguage.FR -> "Inspection"
+            AppLanguage.EN -> "Inspection"
+        }
+        val model = draft?.model ?: dateLabel
+        val generation = draft?.generation ?: ""
+        val year = draft?.year ?: 2018
+        val fuel = draft?.fuelType ?: "ESSENCE"
+        val gearbox = draft?.gearboxType ?: "MANUELLE"
+        val engine = draft?.engineDesc ?: ""
+        val bodyType = draft?.bodyType ?: "CITADINE"
+        val adaptiveList = ChecklistEngine.buildChecklistForCar(
+            brand = brand,
+            model = model,
+            fuelType = fuel,
+            gearboxType = gearbox,
+            isQuickMode = true,
+            generation = generation,
+            engineDescription = engine,
+            carYear = year,
+            odometerKm = draft?.odometerKm ?: 0,
+            hasTurbo = draft?.hasTurbo ?: false,
+            isFourWheelDrive = draft?.isFourWheelDrive ?: false,
+            bodyType = bodyType
+        )
+        val entity = InspectionEntity(
+            carBrand = brand,
+            carModel = model,
+            carGeneration = generation,
+            carYear = year,
+            odometerKm = draft?.odometerKm ?: 0,
+            fuelType = fuel,
+            gearboxType = gearbox,
+            engineDescription = engine,
+            hasTurbo = draft?.hasTurbo ?: false,
+            isFourWheelDrive = draft?.isFourWheelDrive ?: false,
+            bodyType = bodyType,
+            plateNumber = draft?.plateNumber.orEmpty(),
+            inspectionMode = "QUICK",
+            totalQuestions = adaptiveList.size,
+            answeredQuestions = 0,
+            status = "IN_PROGRESS",
+            createdAt = now,
+            updatedAt = now
+        )
+        _optimisticAnswers.value = emptyList()
+        _optimisticActiveInspection.value = entity
+        _selectedTab.value = NavTab.OBD
         viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            val lang = _currentLanguage.value
-            val dateLabel = VinWmiHelper.formatTimestampLabel(now, lang)
-            val detectedWmiBrand = _preselectedBrandFromVin.value
-            val brand = draft?.brand ?: detectedWmiBrand ?: when (lang) {
-                AppLanguage.AR -> "فحص"
-                AppLanguage.FR -> "Inspection"
-                AppLanguage.EN -> "Inspection"
+            inspectionUpdateMutex.lock()
+            try {
+                val id = repository.insertInspection(entity)
+                _optimisticActiveInspection.value = entity.copy(id = id)
+                _activeInspectionId.value = id
+            } finally {
+                inspectionUpdateMutex.unlock()
             }
-            val model = draft?.model ?: dateLabel
-            val generation = draft?.generation ?: ""
-            val year = draft?.year ?: 2018
-            val fuel = draft?.fuelType ?: "ESSENCE"
-            val gearbox = draft?.gearboxType ?: "MANUELLE"
-            val engine = draft?.engineDesc ?: ""
-            val bodyType = draft?.bodyType ?: "CITADINE"
-            val adaptiveList = ChecklistEngine.buildChecklistForCar(
-                brand = brand,
-                model = model,
-                fuelType = fuel,
-                gearboxType = gearbox,
-                isQuickMode = true,
-                generation = generation,
-                engineDescription = engine,
-                carYear = year,
-                odometerKm = draft?.odometerKm ?: 0,
-                hasTurbo = draft?.hasTurbo ?: false,
-                isFourWheelDrive = draft?.isFourWheelDrive ?: false,
-                bodyType = bodyType
-            )
-            val entity = InspectionEntity(
-                carBrand = brand,
-                carModel = model,
-                carGeneration = generation,
-                carYear = year,
-                odometerKm = draft?.odometerKm ?: 0,
-                fuelType = fuel,
-                gearboxType = gearbox,
-                engineDescription = engine,
-                hasTurbo = draft?.hasTurbo ?: false,
-                isFourWheelDrive = draft?.isFourWheelDrive ?: false,
-                bodyType = bodyType,
-                plateNumber = draft?.plateNumber.orEmpty(),
-                inspectionMode = "QUICK",
-                totalQuestions = adaptiveList.size,
-                answeredQuestions = 0,
-                status = "IN_PROGRESS",
-                createdAt = now,
-                updatedAt = now
-            )
-            val id = repository.insertInspection(entity)
-            _activeInspectionId.value = id
-            _selectedTab.value = NavTab.OBD
             onReady()
         }
     }
@@ -602,11 +628,13 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openChecklistForInspection(inspectionId: Long) {
+        _optimisticAnswers.value = emptyList()
         _activeInspectionId.value = inspectionId
         _selectedTab.value = NavTab.CHECKLIST_WIZARD
     }
 
     fun openInspectionOrReport(inspectionId: Long) {
+        _optimisticAnswers.value = emptyList()
         _activeInspectionId.value = inspectionId
         viewModelScope.launch {
             val insp = repository.getInspection(inspectionId)
@@ -746,45 +774,56 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        val adaptiveList = ChecklistEngine.buildChecklistForCar(
+            brand = brand,
+            model = model,
+            fuelType = fuelType,
+            gearboxType = gearboxType,
+            isQuickMode = isQuickMode,
+            generation = generation,
+            engineDescription = engineDesc,
+            carYear = year,
+            odometerKm = odometerKm,
+            hasTurbo = hasTurbo,
+            isFourWheelDrive = isFourWheelDrive,
+            bodyType = bodyType
+        )
+        val newInspection = InspectionEntity(
+            carBrand = brand,
+            carModel = model,
+            carGeneration = generation,
+            carYear = year,
+            odometerKm = odometerKm,
+            fuelType = fuelType,
+            gearboxType = gearboxType,
+            engineDescription = engineDesc,
+            hasTurbo = hasTurbo,
+            isFourWheelDrive = isFourWheelDrive,
+            bodyType = bodyType,
+            plateNumber = plateNumber.trim(),
+            inspectionMode = if (isQuickMode) "QUICK" else "FULL",
+            totalQuestions = adaptiveList.size,
+            answeredQuestions = 0,
+            status = "IN_PROGRESS"
+        )
+        _optimisticAnswers.value = emptyList()
+        _optimisticActiveInspection.value = newInspection
+        _selectedTab.value = targetTab
         viewModelScope.launch {
-            val adaptiveList = ChecklistEngine.buildChecklistForCar(
-                brand = brand,
-                model = model,
-                fuelType = fuelType,
-                gearboxType = gearboxType,
-                isQuickMode = isQuickMode,
-                generation = generation,
-                engineDescription = engineDesc,
-                carYear = year,
-                odometerKm = odometerKm,
-                hasTurbo = hasTurbo,
-                isFourWheelDrive = isFourWheelDrive,
-                bodyType = bodyType
-            )
-            val newInspection = InspectionEntity(
-                carBrand = brand,
-                carModel = model,
-                carGeneration = generation,
-                carYear = year,
-                odometerKm = odometerKm,
-                fuelType = fuelType,
-                gearboxType = gearboxType,
-                engineDescription = engineDesc,
-                hasTurbo = hasTurbo,
-                isFourWheelDrive = isFourWheelDrive,
-                bodyType = bodyType,
-                plateNumber = plateNumber.trim(),
-                inspectionMode = if (isQuickMode) "QUICK" else "FULL",
-                totalQuestions = adaptiveList.size,
-                answeredQuestions = 0,
-                status = "IN_PROGRESS"
-            )
-            val id = repository.insertInspection(newInspection)
-            _activeInspectionId.value = id
-            _selectedTab.value = targetTab
+            val id: Long
+            inspectionUpdateMutex.lock()
+            try {
+                id = repository.insertInspection(newInspection)
+                _optimisticActiveInspection.value = newInspection.copy(id = id)
+                _activeInspectionId.value = id
+            } finally {
+                inspectionUpdateMutex.unlock()
+            }
             onCreated(id)
         }
     }
+
+    private val inspectionUpdateMutex = kotlinx.coroutines.sync.Mutex()
 
     fun saveChecklistAnswer(
         item: ChecklistItemDefinition,
@@ -793,43 +832,57 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
         photoUri: String?,
         totalAdaptiveItems: Int
     ) {
-        val inspectionId = _activeInspectionId.value ?: return
+        val now = System.currentTimeMillis()
+        val optimisticEntity = ChecklistAnswerEntity(
+            id = 0L,
+            inspectionId = _activeInspectionId.value ?: 0L,
+            itemId = item.id,
+            category = item.section.name,
+            questionFr = item.questionFr,
+            questionAr = item.questionAr,
+            questionEn = item.questionEn,
+            status = status,
+            severity = item.severity.name,
+            estimatedCostDzd = 0,
+            note = note,
+            photoUri = photoUri,
+            timestamp = now
+        )
+        val currentOptMap = _optimisticAnswers.value.associateBy { it.itemId }.toMutableMap()
+        currentOptMap[item.id] = optimisticEntity
+        _optimisticAnswers.value = currentOptMap.values.toList()
+
         viewModelScope.launch {
-            val existingAnswers = activeInspectionAnswers.value
-            val existingForItem = existingAnswers.firstOrNull { it.itemId == item.id }
+            inspectionUpdateMutex.lock()
+            try {
+                val inspectionId = _activeInspectionId.value ?: return@launch
+                val existingAnswers = activeInspectionAnswers.value
+                val existingForItem = existingAnswers.firstOrNull { it.itemId == item.id && it.id > 0L }
 
-            val entity = ChecklistAnswerEntity(
-                id = existingForItem?.id ?: 0L,
-                inspectionId = inspectionId,
-                itemId = item.id,
-                category = item.section.name,
-                questionFr = item.questionFr,
-                questionAr = item.questionAr,
-                questionEn = item.questionEn,
-                status = status,
-                severity = item.severity.name,
-                estimatedCostDzd = 0,
-                note = note,
-                photoUri = photoUri,
-                timestamp = System.currentTimeMillis()
-            )
-            repository.saveAnswer(entity)
+                val entity = optimisticEntity.copy(
+                    id = existingForItem?.id ?: 0L,
+                    inspectionId = inspectionId
+                )
+                repository.saveAnswer(entity)
 
-            val currentInspection = repository.getInspection(inspectionId) ?: return@launch
-            val updatedMap = existingAnswers.associateBy { it.itemId }.toMutableMap()
-            updatedMap[item.id] = entity
+                val currentInspection = repository.getInspection(inspectionId) ?: return@launch
+                val updatedMap = existingAnswers.associateBy { it.itemId }.toMutableMap()
+                updatedMap[item.id] = entity
 
-            val answeredCount = updatedMap.size
-            val problemCount = updatedMap.values.count { it.status == "PROBLEM" }
+                val answeredCount = updatedMap.size
+                val problemCount = updatedMap.values.count { it.status == "PROBLEM" }
 
-            repository.updateInspection(
-                currentInspection.copy(
+                val updatedInspection = currentInspection.copy(
                     totalQuestions = totalAdaptiveItems,
                     answeredQuestions = answeredCount,
                     problemCount = problemCount,
                     updatedAt = System.currentTimeMillis()
                 )
-            )
+                _optimisticActiveInspection.value = updatedInspection
+                repository.updateInspection(updatedInspection)
+            } finally {
+                inspectionUpdateMutex.unlock()
+            }
         }
     }
 
@@ -837,63 +890,88 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
         askingPriceMillions: Double,
         mechanicQuotedRepairDzd: Int
     ) {
-        val inspectionId = _activeInspectionId.value ?: return
         viewModelScope.launch {
-            val current = repository.getInspection(inspectionId) ?: return@launch
-            val safeQuote = mechanicQuotedRepairDzd.coerceAtLeast(0)
-            repository.updateInspection(
-                current.copy(
+            inspectionUpdateMutex.lock()
+            try {
+                val inspectionId = _activeInspectionId.value ?: return@launch
+                val current = repository.getInspection(inspectionId) ?: return@launch
+                val safeQuote = mechanicQuotedRepairDzd.coerceAtLeast(0)
+                val updated = current.copy(
                     sellerAskingPriceMillions = askingPriceMillions.coerceAtLeast(0.0),
                     userQuotedRepairDzd = safeQuote,
                     totalEstimatedCostDzd = safeQuote,
                     updatedAt = System.currentTimeMillis()
                 )
-            )
+                _optimisticActiveInspection.value = updated
+                repository.updateInspection(updated)
+            } finally {
+                inspectionUpdateMutex.unlock()
+            }
         }
     }
 
     fun extendActiveInspectionToFull() {
-        val inspectionId = _activeInspectionId.value ?: return
         viewModelScope.launch {
-            val current = repository.getInspection(inspectionId) ?: return@launch
-            val fullList = ChecklistEngine.buildChecklistForCar(
-                brand = current.carBrand,
-                model = current.carModel,
-                fuelType = current.fuelType,
-                gearboxType = current.gearboxType,
-                isQuickMode = false,
-                generation = current.carGeneration,
-                engineDescription = current.engineDescription,
-                carYear = current.carYear,
-                odometerKm = current.odometerKm,
-                hasTurbo = current.hasTurbo,
-                isFourWheelDrive = current.isFourWheelDrive,
-                bodyType = current.bodyType
-            )
-            repository.updateInspection(
-                current.copy(
+            inspectionUpdateMutex.lock()
+            try {
+                val inspectionId = _activeInspectionId.value ?: return@launch
+                val current = repository.getInspection(inspectionId) ?: return@launch
+                val fullList = ChecklistEngine.buildChecklistForCar(
+                    brand = current.carBrand,
+                    model = current.carModel,
+                    fuelType = current.fuelType,
+                    gearboxType = current.gearboxType,
+                    isQuickMode = false,
+                    generation = current.carGeneration,
+                    engineDescription = current.engineDescription,
+                    carYear = current.carYear,
+                    odometerKm = current.odometerKm,
+                    hasTurbo = current.hasTurbo,
+                    isFourWheelDrive = current.isFourWheelDrive,
+                    bodyType = current.bodyType
+                )
+                val updated = current.copy(
                     inspectionMode = "FULL",
                     totalQuestions = fullList.size,
                     updatedAt = System.currentTimeMillis()
                 )
-            )
+                _optimisticActiveInspection.value = updated
+                repository.updateInspection(updated)
+            } finally {
+                inspectionUpdateMutex.unlock()
+            }
         }
     }
 
     fun finishActiveInspection(score: Int?, verdict: String, totalRepairDzd: Int) {
-        val inspectionId = _activeInspectionId.value ?: return
+        val currentActive = activeInspection.value
+        if (currentActive != null) {
+            _optimisticActiveInspection.value = currentActive.copy(
+                status = if (score != null) "COMPLETED" else "IN_PROGRESS",
+                overallScore = score,
+                verdict = verdict,
+                totalEstimatedCostDzd = currentActive.userQuotedRepairDzd,
+                updatedAt = System.currentTimeMillis()
+            )
+        }
+        _selectedTab.value = NavTab.REPORT
         viewModelScope.launch {
-            val current = repository.getInspection(inspectionId) ?: return@launch
-            repository.updateInspection(
-                current.copy(
+            inspectionUpdateMutex.lock()
+            try {
+                val inspectionId = _activeInspectionId.value ?: return@launch
+                val current = repository.getInspection(inspectionId) ?: return@launch
+                val updated = current.copy(
                     status = if (score != null) "COMPLETED" else "IN_PROGRESS",
                     overallScore = score,
                     verdict = verdict,
                     totalEstimatedCostDzd = current.userQuotedRepairDzd,
                     updatedAt = System.currentTimeMillis()
                 )
-            )
-            _selectedTab.value = NavTab.REPORT
+                _optimisticActiveInspection.value = updated
+                repository.updateInspection(updated)
+            } finally {
+                inspectionUpdateMutex.unlock()
+            }
         }
     }
 
@@ -929,10 +1007,15 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         /**
-         * Phase 7 (Item 1) & Approved Scan-to-Checklist Links:
-         * Determines which checklist items can be automatically answered by a real OBD2 scan
-         * based on the parameters that the car's ECU actually reported.
-         * Note: after_temp_fan_operation is NEVER answered by a single scan (only by test-drive monitoring).
+         * Phase 7 (Item 1) & Approved Scan-to-Checklist Links (Part 3):
+         * Determines which checklist items can be automatically answered by a single real OBD2 scan
+         * based on the parameters that the car's ECU actually reported:
+         * - int_check_engine_light_key_on (only when user answered Yes or No, or ECU MIL is ON; left unanswered on "I did not look")
+         * - start_idle_rpm_stability (when engine is warm >= 75 °C and RPM steadiness was measured)
+         * - doc_vin_three_way_match (when ECU VIN was read and compared with carte grise)
+         * Note: after_temp_fan_operation, bonnet_battery_alternator, and final_obd_pending_after_drive
+         * are NEVER answered by a single stationary scan (only by test-drive monitoring).
+         * int_airbag_abs_lights_key_on is NEVER answered by generic engine OBD scan.
          */
         fun buildAutoAnsweredChecklistItemsFromScan(
             scanResult: ObdScanResult,
@@ -949,12 +1032,13 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
             val itemsById = adaptiveItems.associateBy { it.id }
             val proposals = mutableListOf<ProposedObdChecklistAnswer>()
 
-            // 1. Dashboard warning lights & MIL check (int_dashboard_warning_lights)
-            // If user answered "I did not look" (DID_NOT_LOOK) and ECU MIL is not ON, do not auto-answer this item.
+            // 1. Engine warning light at key-on & running (int_check_engine_light_key_on)
+            // If user answered "I did not look" (DID_NOT_LOOK) and ECU MIL is not ON, leave unanswered.
             val isMilTampered = milKeyOnAnswer == MilKeyOnUserAnswer.NEVER_LIT_UP
             val isMilActive = scanResult.milCommandedOn == true
             if (isMilTampered || isMilActive || milKeyOnAnswer == MilKeyOnUserAnswer.LIT_UP_NORMAL) {
-                itemsById["int_dashboard_warning_lights"]?.let { def ->
+                val targetDef = itemsById["int_check_engine_light_key_on"] ?: itemsById["int_dashboard_warning_lights"]
+                targetDef?.let { def ->
                     val status = if (isMilTampered || isMilActive) "PROBLEM" else "GOOD"
                     val reasonFr = when {
                         isMilTampered -> "$OBD_AUTO_ANSWER_TAG Voyant moteur absent au contact"
@@ -975,27 +1059,12 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // 2. Battery & Alternator charging voltage (bonnet_battery_alternator)
-            val voltGauge = scanResult.liveParameters.firstOrNull { it.id == "volt" && it.status != "UNAVAILABLE" }
-            if (voltGauge != null) {
-                itemsById["bonnet_battery_alternator"]?.let { def ->
-                    val status = if (voltGauge.status == "GREEN") "GOOD" else "PROBLEM"
-                    proposals.add(
-                        ProposedObdChecklistAnswer(
-                            item = def,
-                            status = status,
-                            reasonFr = "$OBD_AUTO_ANSWER_TAG Tension lue par ELM327 : ${voltGauge.valueText}",
-                            reasonAr = "$OBD_AUTO_ANSWER_TAG جهد البطارية/الشحن المقروء عبر الفيشة: ${voltGauge.valueText}",
-                            reasonEn = "$OBD_AUTO_ANSWER_TAG Voltage read by ELM327: ${voltGauge.valueText}"
-                        )
-                    )
-                }
-            }
-
-            // 3. Engine idle RPM steadiness (start_idle_rpm_stability)
+            // 2. Engine idle RPM steadiness at warm idle (start_idle_rpm_stability)
             val rpmGauge = scanResult.liveParameters.firstOrNull { it.id == "rpm" && it.status != "UNAVAILABLE" }
             val rpmNumber = scanResult.idleRpmAvg ?: rpmGauge?.valueText?.takeWhile { it.isDigit() }?.toIntOrNull()
-            if (rpmGauge != null && rpmNumber != null && rpmNumber > 400) {
+            val isEngineWarm = scanResult.coolantTempC == null ||
+                scanResult.coolantTempC >= com.example.domain.ObdVerdictThresholds.COOLANT_NORMAL_MIN_C
+            if (rpmGauge != null && rpmNumber != null && rpmNumber > 400 && isEngineWarm) {
                 itemsById["start_idle_rpm_stability"]?.let { def ->
                     val status = if (rpmGauge.status == "GREEN") "GOOD" else "PROBLEM"
                     proposals.add(
@@ -1010,23 +1079,7 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // 4. Fault codes & cleared-codes check (final_obd_pending_after_drive)
-            itemsById["final_obd_pending_after_drive"]?.let { def ->
-                val hasFaultsOrReset = scanResult.dtcList.isNotEmpty() || scanResult.isRecentlyClearedFraudAlert
-                val status = if (hasFaultsOrReset) "PROBLEM" else "GOOD"
-                val dtcSummary = if (scanResult.dtcList.isEmpty()) "0 DTC" else scanResult.dtcList.joinToString(", ") { it.code }
-                proposals.add(
-                    ProposedObdChecklistAnswer(
-                        item = def,
-                        status = status,
-                        reasonFr = "$OBD_AUTO_ANSWER_TAG Défauts enregistrés calculateur : $dtcSummary",
-                        reasonAr = "$OBD_AUTO_ANSWER_TAG الأعطال المسجلة في الكمبيوتر: $dtcSummary",
-                        reasonEn = "$OBD_AUTO_ANSWER_TAG Stored faults in computer: $dtcSummary"
-                    )
-                )
-            }
-
-            // 5. Chassis VIN comparison if user compared ECU VIN with Carte Grise (doc_vin_three_way_match)
+            // 3. Chassis VIN comparison if user compared ECU VIN with Carte Grise (doc_vin_three_way_match)
             if (!scanResult.ecuVin.isNullOrBlank() && ecuVinComparison != EcuVinComparisonChoice.COULD_NOT_COMPARE) {
                 itemsById["doc_vin_three_way_match"]?.let { def ->
                     val status = if (ecuVinComparison == EcuVinComparisonChoice.SAME) "GOOD" else "PROBLEM"
@@ -1058,7 +1111,9 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
             MilKeyOnUserAnswer.LIT_UP_NORMAL
         } else {
             MilKeyOnUserAnswer.NEVER_LIT_UP
-        }
+        },
+        targetTabAfterSave: NavTab? = if (returnToChecklist) NavTab.CHECKLIST_WIZARD else null,
+        switchToFullMode: Boolean = false
     ) {
         // Hard block: a simulated result must never be saved into an inspection
         if (scanResult.isSimulated) return
@@ -1166,8 +1221,9 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
             val updatedMap = existingAnswers.associateBy { it.itemId }.toMutableMap()
             updatedMap[obdAnswer.itemId] = obdAnswer
 
-            // Phase 7 (Item 1): Fill in matching checklist items automatically from the confirmed OBD scan
-            val isQuickMode = current.inspectionMode.equals("QUICK", ignoreCase = true)
+            // Phase 7 (Item 1) & Part 3: Fill in matching checklist items automatically from the confirmed OBD scan
+            val effectiveMode = if (switchToFullMode) "FULL" else current.inspectionMode
+            val isQuickMode = effectiveMode.equals("QUICK", ignoreCase = true)
             val adaptiveItems = ChecklistEngine.buildChecklistForCar(
                 brand = current.carBrand,
                 model = current.carModel,
@@ -1261,6 +1317,8 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
                 current.copy(
                     carBrand = updatedBrand,
                     vin = updatedVin,
+                    inspectionMode = effectiveMode,
+                    totalQuestions = adaptiveItems.size,
                     hasObdScan = true,
                     obdCommunicationSuccess = scanResult.isCommunicationSuccess,
                     obdProtocolDescription = scanResult.detectedProtocol,
@@ -1280,7 +1338,9 @@ class FahsViewModel(application: Application) : AndroidViewModel(application) {
                 )
             )
 
-            if (returnToChecklist) {
+            if (targetTabAfterSave != null) {
+                _selectedTab.value = targetTabAfterSave
+            } else if (returnToChecklist) {
                 _selectedTab.value = NavTab.CHECKLIST_WIZARD
             }
         }

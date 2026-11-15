@@ -1,9 +1,12 @@
 package com.example
 
 import android.content.Context
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ApplicationProvider
 import com.example.core.i18n.AppLanguage
 import com.example.core.i18n.Strings
@@ -579,5 +582,53 @@ class FahsAppRobolectricTest {
       autoProposals.none { it.item.id == "after_temp_fan_operation" }
     )
   }
+
+  @Test
+  fun `verify part 4 three minute visual check 10 points and automatic report transition`() {
+    composeTestRule.waitForIdle()
+
+    // 1. Tap Manual Inspection on Home -> choose 3-minute visual check (10 points)
+    composeTestRule.onNodeWithTag("start_inspection_button").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("start_quick_manual_btn").performClick()
+    composeTestRule.waitForIdle()
+
+    // 2. Verify 3-Minute Visual Check header, 1..10 step bar, and custom point illustration card
+    composeTestRule.onNodeWithTag("wizard_header_title").assertExists()
+    composeTestRule.onNodeWithTag("wizard_question_counter_pill").assertExists()
+    composeTestRule.onNodeWithTag("quick_check_step_bar").assertExists()
+    composeTestRule.onNodeWithTag("quick_step_pill_1").assertExists()
+    composeTestRule.onNodeWithTag("visual_point_illustration_card").assertExists()
+
+    // 3. Answer all 10 points one by one and verify automatic transition to Combined Report on the 10th point
+    for (step in 1..10) {
+      composeTestRule.onNodeWithTag("answer_good_btn").performScrollTo().performClick()
+      composeTestRule.waitForIdle()
+    }
+
+    // After the 10th answer is tapped, the app automatically saves and opens the Combined Report screen (Part 5)
+    composeTestRule.onNodeWithTag("report_back_btn").assertExists()
+    composeTestRule.onNodeWithTag("report_lazy_column")
+      .performScrollToNode(hasTestTag("plain_language_summary_card"))
+    composeTestRule.onNodeWithTag("plain_language_summary_card").assertExists()
+    composeTestRule.onNodeWithTag("report_lazy_column")
+      .performScrollToNode(hasTestTag("share_whatsapp_pdf_btn"))
+    composeTestRule.onNodeWithTag("share_whatsapp_pdf_btn").assertExists()
+    composeTestRule.onNodeWithTag("download_pdf_btn").assertExists()
+    composeTestRule.onNodeWithTag("report_lazy_column")
+      .performScrollToNode(hasTestTag("report_section_a_card"))
+    composeTestRule.onNodeWithTag("report_section_a_card").assertExists()
+    composeTestRule.onNodeWithTag("report_lazy_column")
+      .performScrollToNode(hasTestTag("report_section_b_card"))
+    composeTestRule.onNodeWithTag("report_section_b_card").assertExists()
+    composeTestRule.onNodeWithTag("report_lazy_column")
+      .performScrollToNode(hasTestTag("report_what_to_ask_mechanic_card"))
+    composeTestRule.onNodeWithTag("report_what_to_ask_mechanic_card").assertExists()
+    composeTestRule.onNodeWithTag("report_lazy_column")
+      .performScrollToNode(hasTestTag("report_points_to_discuss_price_card"))
+    composeTestRule.onNodeWithTag("report_points_to_discuss_price_card").assertExists()
+  }
 }
+
+
 

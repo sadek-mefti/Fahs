@@ -188,9 +188,10 @@ fun InspectionReportScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(Slate50),
+            .background(MaterialTheme.colorScheme.background)
+            .testTag("report_lazy_column"),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // 1. Top Navigation & Car Title Bar
         item {
@@ -205,19 +206,19 @@ fun InspectionReportScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = Slate900
+                        tint = MaterialTheme.colorScheme.onBackground
                     )
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = when (language) {
-                            AppLanguage.AR -> "التقرير النهائي لفحص السيارة"
-                            AppLanguage.FR -> "Rapport Final d'Inspection"
-                            AppLanguage.EN -> "Final Inspection Report"
+                            AppLanguage.AR -> "التقرير الشامل لفحص السيارة"
+                            AppLanguage.FR -> "Rapport combiné d'inspection"
+                            AppLanguage.EN -> "Combined inspection report"
                         },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Slate900,
+                        color = MaterialTheme.colorScheme.onBackground,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -225,13 +226,13 @@ fun InspectionReportScreen(
                     Text(
                         text = "${inspection.carBrand} ${inspection.carModel} (${inspection.carYear})$odoPart • ${inspection.fuelType} • ${inspection.gearboxType}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Slate600
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
 
-        // 2. Score Gauge, Verdict & Critical Cap Card (shows both raw and capped scores + 1-line explanation)
+        // 2. Score Gauge, Verdict & Critical Cap Card (Dark Instrument Cluster Header)
         item {
             ScoreVerdictHeroCard(
                 report = report,
@@ -239,135 +240,60 @@ fun InspectionReportScreen(
             )
         }
 
-        // 2b. Phase 7 (Item 6): Plain-Language Summary Card (3-4 sentences from deterministic templates in 3 languages)
+        // 2b. Plain-Language Summary Card (3-4 sentences from deterministic templates in 3 languages)
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("plain_language_summary_card"),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Emerald50),
-                border = BorderStroke(1.5.dp, Emerald600)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.Description,
                             contentDescription = null,
-                            tint = Emerald800,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = when (language) {
-                                AppLanguage.AR -> "ملخص الفحص بلغة مبسطة (نقاط القوة، العيوب، وما تسأل عنه الميكانيكي)"
-                                AppLanguage.FR -> "Résumé en langage clair (Points forts, défauts & questions au mécanicien)"
-                                AppLanguage.EN -> "Plain-Language Summary (Strengths, Problems & What to Ask a Mechanic)"
+                                AppLanguage.AR -> "ملخص الفحص بلغة مبسطة"
+                                AppLanguage.FR -> "Résumé en langage clair"
+                                AppLanguage.EN -> "Plain-language summary"
                             },
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = Emerald900
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = report.getPlainLanguageSummary(language),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Slate900,
-                        lineHeight = 21.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = 22.sp,
                         modifier = Modifier.testTag("plain_language_summary_text")
                     )
                 }
             }
         }
 
-        // 2c. Phase 8: Scores per Area Card (horizontal bars matching the PDF report)
-        if (report.areaScores.isNotEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("scores_per_area_card"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, Slate200)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = when (language) {
-                                AppLanguage.AR -> "النتائج حسب قسم الفحص"
-                                AppLanguage.FR -> "Scores par zone d'inspection"
-                                AppLanguage.EN -> "Scores per Inspection Area"
-                            },
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Slate900
-                        )
-                        report.areaScores.forEach { area ->
-                            val scorePct = area.scorePercent
-                            val barColor = when {
-                                scorePct == null -> Slate300
-                                scorePct >= 75 -> StatusPassGreen
-                                scorePct >= 50 -> StatusWarningAmber
-                                else -> StatusErrorRed
-                            }
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = area.getTitle(language),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Slate800,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        text = if (scorePct != null) {
-                                            "$scorePct% (${area.passedCount}/${area.checkedCount})"
-                                        } else {
-                                            when (language) {
-                                                AppLanguage.AR -> "غير مفحوص (0/${area.totalCount})"
-                                                AppLanguage.FR -> "Non vérifié (0/${area.totalCount})"
-                                                AppLanguage.EN -> "Not checked (0/${area.totalCount})"
-                                            }
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (scorePct != null) barColor else Slate600
-                                    )
-                                }
-                                LinearProgressIndicator(
-                                    progress = { (scorePct ?: 0) / 100f },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(8.dp)
-                                        .clip(RoundedCornerShape(4.dp)),
-                                    color = barColor,
-                                    trackColor = Slate100
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. Phase 8 Primary Actions: Download PDF + Share PDF + Post-Save Confirmation with "Open" Action
+        // 3. One-Tap Share PDF on WhatsApp + Download PDF + Quick Actions
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("share_whatsapp_pdf_btn"),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Slate200)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Column(
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     val suggestedFileName = remember(inspection) {
@@ -375,21 +301,66 @@ fun InspectionReportScreen(
                     }
                     Text(
                         text = when (language) {
-                            AppLanguage.AR -> "تقرير PDF الاحترافي ($suggestedFileName)"
-                            AppLanguage.FR -> "Rapport PDF Professionnel ($suggestedFileName)"
-                            AppLanguage.EN -> "Professional PDF Report ($suggestedFileName)"
+                            AppLanguage.AR -> "مشاركة وحفظ التقرير كملف PDF ($suggestedFileName)"
+                            AppLanguage.FR -> "Partager ou enregistrer le rapport PDF ($suggestedFileName)"
+                            AppLanguage.EN -> "Share or save the PDF report ($suggestedFileName)"
                         },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Slate700
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
+                    // Primary 56dp Button: Share PDF on WhatsApp
+                    Button(
+                        onClick = {
+                            val file = PdfReportGenerator.sharePdfReport(
+                                context = context,
+                                report = report,
+                                language = language,
+                                sellerAskingMillions = askingMillions.takeIf { it > 0.0 },
+                                mechanicQuotedRepairDzd = mechanicQuoteDzd.takeIf { it > 0 }
+                            )
+                            val msg = when (language) {
+                                AppLanguage.AR -> "تم إنشاء تقرير PDF جاهز للمشاركة عبر واتساب (${file.name})"
+                                AppLanguage.FR -> "Rapport PDF généré et prêt à partager sur WhatsApp (${file.name})"
+                                AppLanguage.EN -> "PDF report generated and ready to share on WhatsApp (${file.name})"
+                            }
+                            onPdfGeneratedNotification(msg)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .testTag("export_pdf_btn"),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = when (language) {
+                                AppLanguage.AR -> "مشاركة تقرير PDF عبر واتساب"
+                                AppLanguage.FR -> "Partager le PDF sur WhatsApp"
+                                AppLanguage.EN -> "Share PDF on WhatsApp"
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    // Secondary Row: Download PDF + Edit / Run Scan
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Button 1: Download (Android standard "save file" picker defaulting to Documents/Fahs)
-                        Button(
+                        OutlinedButton(
                             onClick = {
                                 val generatedFile = PdfReportGenerator.generatePdfFile(
                                     context = context,
@@ -413,72 +384,59 @@ fun InspectionReportScreen(
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(52.dp)
+                                .height(48.dp)
                                 .testTag("download_pdf_btn"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Emerald800)
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Download,
                                 contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = when (language) {
-                                    AppLanguage.AR -> "تنزيل (حفظ)"
-                                    AppLanguage.FR -> "Télécharger"
-                                    AppLanguage.EN -> "Download"
+                                    AppLanguage.AR -> "حفظ على الهاتف"
+                                    AppLanguage.FR -> "Télécharger PDF"
+                                    AppLanguage.EN -> "Download PDF"
                                 },
-                                style = MaterialTheme.typography.titleSmall,
+                                style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
 
-                        // Button 2: Share (Android share sheet with PDF attached for WhatsApp, email, etc.)
-                        Button(
-                            onClick = {
-                                val file = PdfReportGenerator.sharePdfReport(
-                                    context = context,
-                                    report = report,
-                                    language = language,
-                                    sellerAskingMillions = askingMillions.takeIf { it > 0.0 },
-                                    mechanicQuotedRepairDzd = mechanicQuoteDzd.takeIf { it > 0 }
-                                )
-                                val msg = when (language) {
-                                    AppLanguage.AR -> "تم إنشاء تقرير PDF جاهز للمشاركة (${file.name})"
-                                    AppLanguage.FR -> "Rapport PDF généré et prêt à partager (${file.name})"
-                                    AppLanguage.EN -> "PDF report generated and ready to share (${file.name})"
-                                }
-                                onPdfGeneratedNotification(msg)
-                            },
+                        OutlinedButton(
+                            onClick = onReopenChecklist,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(52.dp)
-                                .testTag("export_pdf_btn"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Emerald600)
+                                .height(48.dp)
+                                .testTag("edit_checklist_btn"),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Share,
+                                imageVector = Icons.Default.Edit,
                                 contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = when (language) {
-                                    AppLanguage.AR -> "مشاركة PDF"
-                                    AppLanguage.FR -> "Partager"
-                                    AppLanguage.EN -> "Share"
+                                text = if (report.isVisualCheckDone) {
+                                    when (language) {
+                                        AppLanguage.AR -> "تعديل الفحص"
+                                        AppLanguage.FR -> "Modifier réponses"
+                                        AppLanguage.EN -> "Edit answers"
+                                    }
+                                } else {
+                                    when (language) {
+                                        AppLanguage.AR -> "بدء الفحص البصري"
+                                        AppLanguage.FR -> "Contrôle visuel"
+                                        AppLanguage.EN -> "Visual check"
+                                    }
                                 },
-                                style = MaterialTheme.typography.titleSmall,
+                                style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -556,7 +514,7 @@ fun InspectionReportScreen(
                                     },
                                     modifier = Modifier.testTag("open_downloaded_pdf_btn"),
                                     shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Emerald800),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Icon(
@@ -580,80 +538,341 @@ fun InspectionReportScreen(
                             }
                         }
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onReopenChecklist,
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("edit_checklist_btn"),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = when (language) {
-                                    AppLanguage.AR -> "تعديل الإجابات"
-                                    AppLanguage.FR -> "Modifier réponses"
-                                    AppLanguage.EN -> "Edit Answers"
-                                },
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        OutlinedButton(
-                            onClick = onOpenObdScanner,
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("report_open_obd_btn"),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Speed,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = when (language) {
-                                    AppLanguage.AR -> "فحص OBD2"
-                                    AppLanguage.FR -> "Scanner OBD2"
-                                    AppLanguage.EN -> "OBD2 Scan"
-                                },
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
             }
         }
 
-        // 3b. Phase 8 Sample PDF Reports (AR / FR / EN) 1-Tap Preview, Download & Share Card
-        item {
-            com.example.ui.components.SamplePdfReportsShowcaseCard(
-                currentLanguage = language
-            )
-        }
-
-        // 4. Dedicated OBD2 Diagnostic Block in the Report (Phase 5)
+        // =========================================================================
+        // 4. SECTION A — ENGINE & ELECTRONICS (FROM THE AUTOMATIC SCAN)
+        // =========================================================================
         item {
             ObdReportBlockCard(
+                report = report,
                 obdBlock = report.obdBlock,
                 language = language,
                 onOpenObdScanner = onOpenObdScanner
             )
         }
 
-        // 5. Mechanic Quote & Price Negotiation Helper (Phase 5 Option b: user-entered mechanic quote only)
+        // =========================================================================
+        // 5. SECTION B — BODY, TYRES, PAPERS & ROAD TEST (FROM THE VISUAL CHECK)
+        // =========================================================================
+        item {
+            SectionBVisualCheckHeaderCard(
+                report = report,
+                language = language,
+                onStartVisualCheck = onReopenChecklist
+            )
+        }
+
+        // 5a. Scores per Area Card (shown when visual check was performed)
+        if (report.isVisualCheckDone && report.areaScores.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("scores_per_area_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = when (language) {
+                                AppLanguage.AR -> "النتائج حسب قسم الفحص البصري"
+                                AppLanguage.FR -> "Scores par zone du contrôle visuel"
+                                AppLanguage.EN -> "Scores per visual check area"
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        report.areaScores.forEach { area ->
+                            val scorePct = area.scorePercent
+                            val barColor = when {
+                                scorePct == null -> Slate300
+                                scorePct >= 75 -> StatusPassGreen
+                                scorePct >= 50 -> StatusWarningAmber
+                                else -> StatusErrorRed
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = area.getTitle(language),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = if (scorePct != null) {
+                                            "$scorePct% (${area.passedCount}/${area.checkedCount})"
+                                        } else {
+                                            when (language) {
+                                                AppLanguage.AR -> "غير مفحوص (0/${area.totalCount})"
+                                                AppLanguage.FR -> "Non vérifié (0/${area.totalCount})"
+                                                AppLanguage.EN -> "Not checked (0/${area.totalCount})"
+                                            }
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (scorePct != null) barColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                LinearProgressIndicator(
+                                    progress = { (scorePct ?: 0) / 100f },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(8.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = barColor,
+                                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5b. Critical Issues Found in Section B (Red)
+        val manualCriticalProblems = report.criticalProblems.filter { it.itemId != "obd_ecu_diagnostic_scan" }
+        if (manualCriticalProblems.isNotEmpty()) {
+            item {
+                FindingsSectionCard(
+                    title = when (language) {
+                        AppLanguage.AR -> "عيوب حرجة ومخاطر عالية (${manualCriticalProblems.size})"
+                        AppLanguage.FR -> "Anomalies critiques constatées (${manualCriticalProblems.size})"
+                        AppLanguage.EN -> "Critical issues found (${manualCriticalProblems.size})"
+                    },
+                    subtitle = when (language) {
+                        AppLanguage.AR -> "تستوجب فحصاً معمقاً عند ميكانيكي أو التراجع عن الشراء"
+                        AppLanguage.FR -> "Ces points ont plafonné le score et exigent l'avis d'un professionnel"
+                        AppLanguage.EN -> "These items capped the score and require a specialist's opinion"
+                    },
+                    items = manualCriticalProblems,
+                    isCritical = true,
+                    language = language
+                )
+            }
+        }
+
+        // 5c. Important & Minor Issues Found in Section B (Orange)
+        val manualNegotiableProblems = report.negotiableProblems.filter { it.itemId != "obd_ecu_diagnostic_scan" }
+        if (manualNegotiableProblems.isNotEmpty()) {
+            item {
+                FindingsSectionCard(
+                    title = when (language) {
+                        AppLanguage.AR -> "نقاط تحتاج صيانة أو إصلاح (${manualNegotiableProblems.size})"
+                        AppLanguage.FR -> "Points à vérifier ou remettre en état (${manualNegotiableProblems.size})"
+                        AppLanguage.EN -> "Items needing attention or repair (${manualNegotiableProblems.size})"
+                    },
+                    subtitle = when (language) {
+                        AppLanguage.AR -> "اطلب من الميكانيكي تسعير هذه النقاط واخصم تكلفتها من السعر المطلوب"
+                        AppLanguage.FR -> "Faites chiffrer ces défauts par votre mécanicien et déduisez-les du prix demandé"
+                        AppLanguage.EN -> "Ask your mechanic to quote these items and subtract the quote from the asking price"
+                    },
+                    items = manualNegotiableProblems,
+                    isCritical = false,
+                    language = language
+                )
+            }
+        }
+
+        // 5d. Honest "Not Checked" & "Passed" Sections (shown when visual check was performed)
+        if (report.isVisualCheckDone) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showUncheckedItems = !showUncheckedItems },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.RemoveCircleOutline,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = when (language) {
+                                        AppLanguage.AR -> "نقاط تعذر فحصها (${report.uncheckedItems.size})"
+                                        AppLanguage.FR -> "Points non vérifiés (${report.uncheckedItems.size})"
+                                        AppLanguage.EN -> "Items not checked (${report.uncheckedItems.size})"
+                                    },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = if (showUncheckedItems) "▲" else "▼",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        AnimatedVisibility(visible = showUncheckedItems) {
+                            Column(modifier = Modifier.padding(top = 10.dp)) {
+                                if (report.uncheckedItems.isEmpty()) {
+                                    Text(
+                                        text = when (language) {
+                                            AppLanguage.AR -> "تم فحص جميع النقاط المبرمجة للسيارة بنسبة 100% (0 نقطة غير مفحوصة) ✓"
+                                            AppLanguage.FR -> "Tous les points prévus ont été vérifiés (0 point non vérifié) ✓"
+                                            AppLanguage.EN -> "All scheduled items were verified (0 items not checked) ✓"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = StatusPassGreen,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                } else {
+                                    if (report.uncheckedCriticalItems.isNotEmpty()) {
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 8.dp),
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = StatusErrorRedContainer,
+                                            border = BorderStroke(1.dp, StatusErrorRed)
+                                        ) {
+                                            Column(modifier = Modifier.padding(10.dp)) {
+                                                Text(
+                                                    text = when (language) {
+                                                        AppLanguage.AR -> "نقاط حرجة لم يتم فحصها (${report.uncheckedCriticalItems.size}) — يجب فحصها لإظهار النتيجة:"
+                                                        AppLanguage.FR -> "Points CRITIQUES non vérifiés (${report.uncheckedCriticalItems.size}) — requis pour calculer le score :"
+                                                        AppLanguage.EN -> "Unchecked CRITICAL items (${report.uncheckedCriticalItems.size}) — required before a score is shown:"
+                                                    },
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = StatusErrorRedOnContainer
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                report.uncheckedCriticalItems.forEach { crit ->
+                                                    Text(
+                                                        text = "• [${crit.getSectionTitle(language)}] ${crit.getQuestion(language)}",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = StatusErrorRedOnContainer,
+                                                        modifier = Modifier.padding(vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    report.uncheckedItems.forEach { item ->
+                                        val critPrefix = if (item.severity == ItemSeverity.CRITICAL) "[CRITIQUE] " else ""
+                                        Text(
+                                            text = "• $critPrefix[${item.getSectionTitle(language)}] ${item.getQuestion(language)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (item.severity == ItemSeverity.CRITICAL) StatusErrorRed else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = if (item.severity == ItemSeverity.CRITICAL) FontWeight.SemiBold else FontWeight.Normal,
+                                            modifier = Modifier.padding(vertical = 3.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                val manualPassed = report.passedItems.filter { it.itemId != "obd_ecu_diagnostic_scan" }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showPassedItems = !showPassedItems },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = StatusPassGreen,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = when (language) {
+                                        AppLanguage.AR -> "النقاط السليمة والمطابقة (${manualPassed.size})"
+                                        AppLanguage.FR -> "Points conformes (${manualPassed.size})"
+                                        AppLanguage.EN -> "Passed checks (${manualPassed.size})"
+                                    },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = if (showPassedItems) "▲" else "▼",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        AnimatedVisibility(visible = showPassedItems) {
+                            Column(modifier = Modifier.padding(top = 10.dp)) {
+                                manualPassed.forEach { item ->
+                                    Text(
+                                        text = "✓ ${item.getQuestion(language)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(vertical = 3.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // =========================================================================
+        // 6. WHAT TO ASK A MECHANIC BEFORE YOU BUY (Part 5)
+        // =========================================================================
+        item {
+            WhatToAskMechanicCard(
+                report = report,
+                language = language
+            )
+        }
+
+        // =========================================================================
+        // 7. POINTS TO DISCUSS ON THE PRICE & FAIR OFFER CALCULATOR (Part 5)
+        // =========================================================================
+        item {
+            PointsToDiscussOnPriceCard(
+                report = report,
+                language = language
+            )
+        }
+
         item {
             NegotiationCalculatorCard(
                 askingPriceMillionsInput = askingPriceMillionsInput,
@@ -670,7 +889,7 @@ fun InspectionReportScreen(
             )
         }
 
-        // 6. Optional Plate Label & General Notes Summary Card
+        // 8. Optional Plate Label & General Notes Summary Card
         item {
             IdentityAndPaperworkReportCard(
                 report = report,
@@ -678,221 +897,11 @@ fun InspectionReportScreen(
             )
         }
 
-        // 7. Critical Issues Section (Red)
-        if (report.criticalProblems.isNotEmpty()) {
-            item {
-                FindingsSectionCard(
-                    title = when (language) {
-                        AppLanguage.AR -> "عيوب حرجة ومخاطر عالية (${report.criticalProblems.size})"
-                        AppLanguage.FR -> "Anomalies Critiques (${report.criticalProblems.size})"
-                        AppLanguage.EN -> "Critical Issues Found (${report.criticalProblems.size})"
-                    },
-                    subtitle = when (language) {
-                        AppLanguage.AR -> "تستوجب فحصاً معمقاً عند ميكانيكي أو التراجع عن الشراء"
-                        AppLanguage.FR -> "Ces points ont plafonné le score et exigent l'avis d'un professionnel"
-                        AppLanguage.EN -> "These items capped the score and require a specialist's opinion"
-                    },
-                    items = report.criticalProblems,
-                    isCritical = true,
-                    language = language
-                )
-            }
-        }
-
-        // 8. Important & Minor Issues to Negotiate Section (Amber)
-        if (report.negotiableProblems.isNotEmpty()) {
-            item {
-                FindingsSectionCard(
-                    title = when (language) {
-                        AppLanguage.AR -> "نقاط للتفاوض والصيانة (${report.negotiableProblems.size})"
-                        AppLanguage.FR -> "Points à négocier / Réparations à chiffrer (${report.negotiableProblems.size})"
-                        AppLanguage.EN -> "Items to Negotiate / Repairs to Quote (${report.negotiableProblems.size})"
-                    },
-                    subtitle = when (language) {
-                        AppLanguage.AR -> "اطلب من الميكانيكي تسعير هذه النقاط واخصم تكلفتها من السعر المطلوب"
-                        AppLanguage.FR -> "Faites chiffrer ces défauts par votre mécanicien et déduisez-les du prix demandé"
-                        AppLanguage.EN -> "Ask your mechanic to quote these items and subtract the quote from the asking price"
-                    },
-                    items = report.negotiableProblems,
-                    isCritical = false,
-                    language = language
-                )
-            }
-        }
-
-        // 9. Honest "Could Not Check" Section
+        // 9. Sample PDF Reports (AR / FR / EN) 1-Tap Preview, Download & Share Card
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Slate200)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showUncheckedItems = !showUncheckedItems },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.RemoveCircleOutline,
-                                contentDescription = null,
-                                tint = Slate600,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = when (language) {
-                                    AppLanguage.AR -> "نقاط تعذر فحصها (${report.uncheckedItems.size})"
-                                    AppLanguage.FR -> "Points non vérifiés (${report.uncheckedItems.size})"
-                                    AppLanguage.EN -> "Items Not Checked (${report.uncheckedItems.size})"
-                                },
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Slate900
-                            )
-                        }
-                        Text(
-                            text = if (showUncheckedItems) "▲" else "▼",
-                            fontWeight = FontWeight.Bold,
-                            color = Slate600
-                        )
-                    }
-
-                    AnimatedVisibility(visible = showUncheckedItems) {
-                        Column(modifier = Modifier.padding(top = 10.dp)) {
-                            if (report.uncheckedItems.isEmpty()) {
-                                Text(
-                                    text = when (language) {
-                                        AppLanguage.AR -> "تم فحص جميع النقاط المبرمجة للسيارة بنسبة 100% (0 نقطة غير مفحوصة) ✓"
-                                        AppLanguage.FR -> "Tous les points prévus ont été vérifiés (0 point non vérifié) ✓"
-                                        AppLanguage.EN -> "All scheduled items were verified (0 items not checked) ✓"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = StatusPassGreen,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            } else {
-                                if (report.uncheckedCriticalItems.isNotEmpty()) {
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 8.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = StatusErrorRedContainer,
-                                        border = BorderStroke(1.dp, StatusErrorRed)
-                                    ) {
-                                        Column(modifier = Modifier.padding(10.dp)) {
-                                            Text(
-                                                text = when (language) {
-                                                    AppLanguage.AR -> "نقاط حرجة لم يتم فحصها (${report.uncheckedCriticalItems.size}) — يجب فحصها لإظهار النتيجة:"
-                                                    AppLanguage.FR -> "Points CRITIQUES non vérifiés (${report.uncheckedCriticalItems.size}) — requis pour calculer le score :"
-                                                    AppLanguage.EN -> "Unchecked CRITICAL items (${report.uncheckedCriticalItems.size}) — required before a score is shown:"
-                                                },
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = StatusErrorRedOnContainer
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            report.uncheckedCriticalItems.forEach { crit ->
-                                                Text(
-                                                    text = "⚠️ [${crit.getSectionTitle(language)}] ${crit.getQuestion(language)}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = StatusErrorRedOnContainer,
-                                                    modifier = Modifier.padding(vertical = 2.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Text(
-                                    text = when (language) {
-                                        AppLanguage.AR -> "عدد النقاط غير المفحوصة: ${report.uncheckedItems.size} من أصل ${report.totalApplicableCount} (مستبعدة من النتيجة):"
-                                        AppLanguage.FR -> "${report.uncheckedItems.size} point(s) sur ${report.totalApplicableCount} non vérifié(s) (exclus du score) :"
-                                        AppLanguage.EN -> "${report.uncheckedItems.size} of ${report.totalApplicableCount} item(s) not checked (left out of the score):"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Slate600
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                report.uncheckedItems.forEach { item ->
-                                    val critPrefix = if (item.severity == ItemSeverity.CRITICAL) "[CRITIQUE] " else ""
-                                    Text(
-                                        text = "• $critPrefix[${item.getSectionTitle(language)}] ${item.getQuestion(language)}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (item.severity == ItemSeverity.CRITICAL) StatusErrorRed else Slate700,
-                                        fontWeight = if (item.severity == ItemSeverity.CRITICAL) FontWeight.SemiBold else FontWeight.Normal,
-                                        modifier = Modifier.padding(vertical = 3.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 10. Collapsible Passed Items Section
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Slate200)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showPassedItems = !showPassedItems },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = StatusPassGreen,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = when (language) {
-                                    AppLanguage.AR -> "النقاط السليمة والمطابقة (${report.passedItems.size})"
-                                    AppLanguage.FR -> "Points conformes (${report.passedItems.size})"
-                                    AppLanguage.EN -> "Passed Checks (${report.passedItems.size})"
-                                },
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Slate900
-                            )
-                        }
-                        Text(
-                            text = if (showPassedItems) "▲" else "▼",
-                            fontWeight = FontWeight.Bold,
-                            color = Emerald700
-                        )
-                    }
-
-                    AnimatedVisibility(visible = showPassedItems) {
-                        Column(modifier = Modifier.padding(top = 10.dp)) {
-                            report.passedItems.forEach { item ->
-                                Text(
-                                    text = "✓ ${item.getQuestion(language)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Slate700,
-                                    modifier = Modifier.padding(vertical = 3.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            com.example.ui.components.SamplePdfReportsShowcaseCard(
+                currentLanguage = language
+            )
         }
     }
 }
@@ -904,11 +913,20 @@ private fun ScoreVerdictHeroCard(
 ) {
     val scoreVal = report.overallScore
     val rawVal = report.rawUncappedScore
-    val ringColor = when (report.verdict) {
-        "INCOMPLETE" -> Color(0xFF94A3B8)
-        "GOOD" -> Color(0xFF34D399)
-        "NEGOTIATE" -> Color(0xFFFBBF24)
-        else -> Color(0xFFF87171)
+    val ringColor = if (report.isScanOnlyReport) {
+        when (report.obdBlock.scanVerdictLevel) {
+            "GREEN" -> StatusPassGreen
+            "ORANGE" -> StatusWarningAmber
+            "RED" -> StatusErrorRed
+            else -> Color(0xFF94A3B8)
+        }
+    } else {
+        when (report.verdict) {
+            "INCOMPLETE" -> Color(0xFF94A3B8)
+            "GOOD" -> StatusPassGreen
+            "NEGOTIATE" -> StatusWarningAmber
+            else -> StatusErrorRed
+        }
     }
 
     Card(
@@ -916,14 +934,14 @@ private fun ScoreVerdictHeroCard(
             .fillMaxWidth()
             .testTag("report_score_hero_card"),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Slate900)
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0E1F1A))
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Circular Score Gauge
+                // Circular Score / Scan Gauge
                 Box(
                     modifier = Modifier.size(96.dp),
                     contentAlignment = Alignment.Center
@@ -944,27 +962,43 @@ private fun ScoreVerdictHeroCard(
                                 useCenter = false,
                                 style = Stroke(width = 22f, cap = StrokeCap.Round)
                             )
+                        } else if (report.isScanOnlyReport) {
+                            drawArc(
+                                color = ringColor,
+                                startAngle = -90f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                style = Stroke(width = 22f, cap = StrokeCap.Round)
+                            )
                         }
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = if (scoreVal != null) "$scoreVal" else "—",
+                            text = when {
+                                scoreVal != null -> "$scoreVal"
+                                report.isScanOnlyReport -> "OBD"
+                                else -> "—"
+                            },
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White
                         )
                         Text(
-                            text = if (scoreVal != null) {
-                                "/ 100"
-                            } else {
-                                when (language) {
+                            text = when {
+                                scoreVal != null -> "/ 100"
+                                report.isScanOnlyReport -> when (language) {
+                                    AppLanguage.AR -> "فحص آلي"
+                                    AppLanguage.FR -> "Scan seul"
+                                    AppLanguage.EN -> "Scan only"
+                                }
+                                else -> when (language) {
                                     AppLanguage.AR -> "غير مكتمل"
                                     AppLanguage.FR -> "Incomplet"
                                     AppLanguage.EN -> "Incomplete"
                                 }
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = Slate300
+                            color = Color(0xFFA5B8B1)
                         )
                     }
                 }
@@ -978,11 +1012,11 @@ private fun ScoreVerdictHeroCard(
                         border = BorderStroke(1.dp, ringColor)
                     ) {
                         Text(
-                            text = report.getVerdictTitle(language),
+                            text = report.getDisplayVerdictTitle(language),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
-                            color = ringColor,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
 
@@ -1011,31 +1045,39 @@ private fun ScoreVerdictHeroCard(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = when (language) {
-                            AppLanguage.AR -> "تم فحص ${report.checkedCount}/${report.totalApplicableCount} • غير مفحوص: ${report.uncheckedItems.size}"
-                            AppLanguage.FR -> "Vérifiés : ${report.checkedCount}/${report.totalApplicableCount} • Non vérifiés : ${report.uncheckedItems.size}"
-                            AppLanguage.EN -> "Checked: ${report.checkedCount}/${report.totalApplicableCount} • Not checked: ${report.uncheckedItems.size}"
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Emerald200
-                    )
-
-                    Text(
                         text = if (report.hasObdScanIncluded) {
                             when (language) {
-                                AppLanguage.AR -> "✓ يشمل فحص الكمبيوتر OBD2"
-                                AppLanguage.FR -> "✓ Inclut le diagnostic OBD2"
-                                AppLanguage.EN -> "✓ Includes OBD2 ECU Scan"
+                                AppLanguage.AR -> "✓ القسم أ: تم فحص المحرك والإلكترونيات (OBD)"
+                                AppLanguage.FR -> "✓ Section A : Moteur et électronique scannés"
+                                AppLanguage.EN -> "✓ Section A: Engine & electronics scanned"
                             }
                         } else {
                             when (language) {
-                                AppLanguage.AR -> "○ بدون فحص OBD2 (فحص يدوي)"
-                                AppLanguage.FR -> "○ Sans scan OBD2 (inspection visuelle)"
-                                AppLanguage.EN -> "○ Visual inspection (no OBD2 scan)"
+                                AppLanguage.AR -> "○ القسم أ: لم يتم إجراء فحص الكمبيوتر"
+                                AppLanguage.FR -> "○ Section A : Scan électronique non effectué"
+                                AppLanguage.EN -> "○ Section A: Electronic scan not done"
                             }
                         },
                         style = MaterialTheme.typography.labelSmall,
-                        color = Slate300
+                        color = Color(0xFFA5B8B1)
+                    )
+
+                    Text(
+                        text = if (report.isVisualCheckDone) {
+                            when (language) {
+                                AppLanguage.AR -> "✓ القسم ب: تم فحص ${report.manualVisualCheckedCount}/${report.totalApplicableCount} نقطة بصرية"
+                                AppLanguage.FR -> "✓ Section B : ${report.manualVisualCheckedCount}/${report.totalApplicableCount} points visuels vérifiés"
+                                AppLanguage.EN -> "✓ Section B: ${report.manualVisualCheckedCount}/${report.totalApplicableCount} visual points checked"
+                            }
+                        } else {
+                            when (language) {
+                                AppLanguage.AR -> "○ القسم ب: لم يتم إجراء الفحص البصري"
+                                AppLanguage.FR -> "○ Section B : Contrôle visuel non effectué"
+                                AppLanguage.EN -> "○ Section B: Visual check not done"
+                            }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFA5B8B1)
                     )
                 }
             }
@@ -1043,7 +1085,11 @@ private fun ScoreVerdictHeroCard(
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = report.getVerdictSummary(language),
+                text = if (report.isScanOnlyReport) {
+                    report.obdBlock.getScopeDisclaimerText(language)
+                } else {
+                    report.getVerdictSummary(language)
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.92f),
                 lineHeight = 19.sp
@@ -1085,21 +1131,24 @@ private fun ScoreVerdictHeroCard(
 
 @Composable
 private fun ObdReportBlockCard(
+    report: InspectionReportData,
     obdBlock: ObdReportBlockData,
     language: AppLanguage,
     onOpenObdScanner: () -> Unit
 ) {
     val borderColor = when {
-        !obdBlock.isScanned -> Slate200
-        obdBlock.hasCriticalAlert -> StatusErrorRed
-        else -> Emerald600
+        !obdBlock.isScanned -> MaterialTheme.colorScheme.outline
+        obdBlock.scanVerdictLevel == "RED" -> StatusErrorRed
+        obdBlock.scanVerdictLevel == "ORANGE" -> StatusWarningAmber
+        else -> StatusPassGreen
     }
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("report_section_a_card")
             .testTag("obd_report_block_card"),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.5.dp, borderColor)
     ) {
         Column(
@@ -1120,95 +1169,394 @@ private fun ObdReportBlockCard(
                     Icon(
                         imageVector = Icons.Default.Speed,
                         contentDescription = null,
-                        tint = if (obdBlock.hasCriticalAlert) StatusErrorRed else Emerald700,
+                        tint = if (obdBlock.hasCriticalAlert) StatusErrorRed else MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = when (language) {
-                            AppLanguage.AR -> "نتائج الفحص الإلكتروني للكمبيوتر (OBD2)"
-                            AppLanguage.FR -> "Résultats du Diagnostic OBD2"
-                            AppLanguage.EN -> "OBD2 Diagnostic Findings"
-                        },
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Slate900
-                    )
+                    Column {
+                        Text(
+                            text = report.getSectionATitle(language),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (obdBlock.isScanned) {
+                            Text(
+                                text = obdBlock.getSectionAVerdictHeadline(language),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = when (obdBlock.scanVerdictLevel) {
+                                    "RED" -> StatusErrorRed
+                                    "ORANGE" -> StatusWarningAmber
+                                    "GREEN" -> StatusPassGreen
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
                 }
 
-                if (!obdBlock.isScanned) {
-                    OutlinedButton(
-                        onClick = onOpenObdScanner,
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Text(
-                            text = when (language) {
+                OutlinedButton(
+                    onClick = onOpenObdScanner,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier
+                        .height(34.dp)
+                        .testTag("report_open_obd_btn")
+                ) {
+                    Text(
+                        text = if (obdBlock.isScanned) {
+                            when (language) {
+                                AppLanguage.AR -> "إعادة الفحص"
+                                AppLanguage.FR -> "Rescanner"
+                                AppLanguage.EN -> "Re-scan"
+                            }
+                        } else {
+                            when (language) {
                                 AppLanguage.AR -> "إجراء الفحص"
                                 AppLanguage.FR -> "Lancer scan"
-                                AppLanguage.EN -> "Run Scan"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
+                                AppLanguage.EN -> "Run scan"
+                            }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
             }
 
-            HorizontalDivider(color = Slate100)
-
-            ObdReportRow(
-                label = when (language) {
-                    AppLanguage.AR -> "1. حالة الاتصال بالكمبيوتر"
-                    AppLanguage.FR -> "1. État de la connexion"
-                    AppLanguage.EN -> "1. Connection status"
-                },
-                value = obdBlock.getConnectionStatusText(language),
-                isWarning = obdBlock.isScanned && !obdBlock.isCommunicationSuccess
+            Text(
+                text = obdBlock.getScopeDisclaimerText(language),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 18.sp
             )
 
-            ObdReportRow(
-                label = when (language) {
-                    AppLanguage.AR -> "2. أكواد الأعطال المسجلة"
-                    AppLanguage.FR -> "2. Codes défauts trouvés"
-                    AppLanguage.EN -> "2. Fault codes found"
-                },
-                value = obdBlock.getFaultCodesText(language),
-                isWarning = obdBlock.dtcCount > 0
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+            if (!obdBlock.isScanned) {
+                Text(
+                    text = when (language) {
+                        AppLanguage.AR -> "لم يتم إجراء الفحص الآلي للمحرك والإلكترونيات خلال هذه المعاينة."
+                        AppLanguage.FR -> "Le scan automatique du moteur et de l'électronique n'a pas été effectué lors de cette visite."
+                        AppLanguage.EN -> "The automatic engine and electronics scan was not performed during this visit."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                ObdReportRow(
+                    label = when (language) {
+                        AppLanguage.AR -> "1. حالة الاتصال بالكمبيوتر"
+                        AppLanguage.FR -> "1. État de la connexion"
+                        AppLanguage.EN -> "1. Connection status"
+                    },
+                    value = obdBlock.getConnectionStatusText(language),
+                    isWarning = !obdBlock.isCommunicationSuccess
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+
+                ObdReportRow(
+                    label = when (language) {
+                        AppLanguage.AR -> "2. أكواد الأعطال المسجلة"
+                        AppLanguage.FR -> "2. Codes défauts trouvés"
+                        AppLanguage.EN -> "2. Fault codes found"
+                    },
+                    value = obdBlock.getFaultCodesText(language),
+                    isWarning = obdBlock.dtcCount > 0
+                )
+                if (obdBlock.faultCodeDetails.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        obdBlock.faultCodeDetails.forEach { dtc ->
+                            Text(
+                                text = "• ${dtc.code} (${dtc.dtcType.getLabel(language)}) — ${dtc.getTitle(language)} : ${dtc.getExplanation(language)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+
+                ObdReportRow(
+                    label = when (language) {
+                        AppLanguage.AR -> "3. حالة مسح الذاكرة الحديث"
+                        AppLanguage.FR -> "3. Statut d'effacement des codes"
+                        AppLanguage.EN -> "3. Cleared-codes status"
+                    },
+                    value = obdBlock.getClearedCodesText(language),
+                    isWarning = obdBlock.clearedCodesStatus == "STRONG_WARNING" || obdBlock.clearedCodesStatus == "CANNOT_RULE_OUT"
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+
+                ObdReportRow(
+                    label = when (language) {
+                        AppLanguage.AR -> "4. فحص لمبة المحرك (Check Engine)"
+                        AppLanguage.FR -> "4. Contrôle du voyant Check-Engine"
+                        AppLanguage.EN -> "4. Check-Engine light check"
+                    },
+                    value = obdBlock.getCheckEngineLightText(language),
+                    isWarning = !obdBlock.milBulbLitAtKeyOn || obdBlock.milCommandedByEcu == "ON"
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+
+                ObdReportRow(
+                    label = when (language) {
+                        AppLanguage.AR -> "5. مقارنة رقم الشاسيه الإلكتروني (09 02)"
+                        AppLanguage.FR -> "5. Comparaison du N° de châssis (09 02)"
+                        AppLanguage.EN -> "5. Chassis-number comparison (09 02)"
+                    },
+                    value = obdBlock.getChassisComparisonText(language),
+                    isWarning = obdBlock.ecuVinComparison == "DIFFERENT"
+                )
+
+                if (obdBlock.liveReadings.isNotEmpty()) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                    Text(
+                        text = when (language) {
+                            AppLanguage.AR -> "القراءات الحية للمحرك"
+                            AppLanguage.FR -> "Valeurs moteur mesurées en direct"
+                            AppLanguage.EN -> "Live engine readings"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    obdBlock.liveReadings.forEach { gauge ->
+                        val statusColor = when (gauge.status) {
+                            "GREEN" -> StatusPassGreen
+                            "ORANGE" -> StatusWarningAmber
+                            "RED" -> StatusErrorRed
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = gauge.getName(language),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = gauge.valueText,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = statusColor
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionBVisualCheckHeaderCard(
+    report: InspectionReportData,
+    language: AppLanguage,
+    onStartVisualCheck: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("report_section_b_card"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(
+            width = 1.5.dp,
+            color = if (!report.isVisualCheckDone) StatusWarningAmber else MaterialTheme.colorScheme.outline
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = report.getSectionBTitle(language),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
 
-            ObdReportRow(
-                label = when (language) {
-                    AppLanguage.AR -> "3. حالة مسح الذاكرة الحديث"
-                    AppLanguage.FR -> "3. Statut d'effacement des codes"
-                    AppLanguage.EN -> "3. Cleared-codes status"
-                },
-                value = obdBlock.getClearedCodesText(language),
-                isWarning = obdBlock.clearedCodesStatus == "STRONG_WARNING" || obdBlock.clearedCodesStatus == "CANNOT_RULE_OUT"
-            )
+            if (!report.isVisualCheckDone) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("report_visual_check_not_done_banner"),
+                    shape = RoundedCornerShape(12.dp),
+                    color = StatusWarningAmberContainer,
+                    border = BorderStroke(1.dp, StatusWarningAmber)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = StatusWarningAmber,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = when (language) {
+                                    AppLanguage.AR -> "الفحص البصري لم يُجرَ — تم فحص المحرك والإلكترونيات فقط"
+                                    AppLanguage.FR -> "Contrôle visuel non effectué — seuls le moteur et l'électronique ont été scannés"
+                                    AppLanguage.EN -> "Visual check not done — only the engine and electronics were scanned"
+                                },
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = StatusWarningAmberOnContainer
+                            )
+                        }
+                        Text(
+                            text = report.getVisualCheckNotDoneNotice(language),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = StatusWarningAmberOnContainer,
+                            lineHeight = 19.sp
+                        )
+                        Button(
+                            onClick = onStartVisualCheck,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("report_start_visual_check_btn"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text(
+                                text = when (language) {
+                                    AppLanguage.AR -> "أضف الفحص البصري في 3 دقائق (10 نقاط)"
+                                    AppLanguage.FR -> "Ajouter le contrôle visuel de 3 min (10 points)"
+                                    AppLanguage.EN -> "Add the 3-minute visual check (10 points)"
+                                },
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            } else {
+                val manualProbs = (report.criticalProblems + report.negotiableProblems)
+                    .count { it.itemId != "obd_ecu_diagnostic_scan" }
+                val manualPassed = report.passedItems.count { it.itemId != "obd_ecu_diagnostic_scan" }
+                Text(
+                    text = when (language) {
+                        AppLanguage.AR -> "النقاط السليمة: $manualPassed • الملاحظات المرصودة: $manualProbs • غير مفحوص: ${report.uncheckedItems.size}"
+                        AppLanguage.FR -> "Points conformes : $manualPassed • Problèmes signalés : $manualProbs • Non vérifiés : ${report.uncheckedItems.size}"
+                        AppLanguage.EN -> "Passed: $manualPassed • Problems found: $manualProbs • Not checked: ${report.uncheckedItems.size}"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
 
-            ObdReportRow(
-                label = when (language) {
-                    AppLanguage.AR -> "4. فحص لمبة المحرك (Check Engine)"
-                    AppLanguage.FR -> "4. Contrôle du voyant Check-Engine"
-                    AppLanguage.EN -> "4. Check-Engine light check"
-                },
-                value = obdBlock.getCheckEngineLightText(language),
-                isWarning = obdBlock.isScanned && (!obdBlock.milBulbLitAtKeyOn || obdBlock.milCommandedByEcu == "ON")
-            )
+@Composable
+private fun WhatToAskMechanicCard(
+    report: InspectionReportData,
+    language: AppLanguage
+) {
+    val questions = remember(report, language) {
+        report.getWhatToAskMechanicItems(language)
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("report_what_to_ask_mechanic_card"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Build,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = report.getWhatToAskMechanicTitle(language),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            questions.forEachIndexed { idx, line ->
+                if (idx > 0) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+                }
+                Text(
+                    text = "${idx + 1}. $line",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 21.sp
+                )
+            }
+        }
+    }
+}
 
-            ObdReportRow(
-                label = when (language) {
-                    AppLanguage.AR -> "5. مقارنة رقم الشاسيه الإلكتروني (09 02)"
-                    AppLanguage.FR -> "5. Comparaison du N° de châssis (09 02)"
-                    AppLanguage.EN -> "5. Chassis-number comparison (09 02)"
-                },
-                value = obdBlock.getChassisComparisonText(language),
-                isWarning = obdBlock.ecuVinComparison == "DIFFERENT"
+@Composable
+private fun PointsToDiscussOnPriceCard(
+    report: InspectionReportData,
+    language: AppLanguage
+) {
+    val points = remember(report, language) {
+        report.getPointsToDiscussOnPriceItems(language)
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("report_points_to_discuss_price_card"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = report.getPointsToDiscussOnPriceTitle(language),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            points.forEachIndexed { idx, line ->
+                if (idx > 0) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+                }
+                Text(
+                    text = "• $line",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 21.sp
+                )
+            }
         }
     }
 }
@@ -1224,14 +1572,14 @@ private fun ObdReportRow(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Slate600
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = if (isWarning) FontWeight.Bold else FontWeight.Medium,
-            color = if (isWarning) StatusErrorRed else Slate900
+            color = if (isWarning) StatusErrorRed else MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -1256,15 +1604,15 @@ private fun NegotiationCalculatorCard(
             .fillMaxWidth()
             .testTag("negotiation_helper_card"),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.5.dp, Emerald600)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Calculate,
                     contentDescription = null,
-                    tint = Emerald700,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1272,11 +1620,11 @@ private fun NegotiationCalculatorCard(
                     text = when (language) {
                         AppLanguage.AR -> "حاسبة العرض العادل (حسب تسعيرة الميكانيكي الخاص بك)"
                         AppLanguage.FR -> "Calculateur d'offre (selon le devis de votre mécanicien)"
-                        AppLanguage.EN -> "Fair Offer Calculator (from your mechanic's quote)"
+                        AppLanguage.EN -> "Fair offer calculator (from your mechanic's quote)"
                     },
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Slate900
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -1289,7 +1637,7 @@ private fun NegotiationCalculatorCard(
                     AppLanguage.EN -> "The app does not subtract unverified automatic repair estimates. Enter the seller's asking price and the repair cost quoted by your own mechanic to calculate your offer."
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = Slate600,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 18.sp
             )
 
@@ -1316,15 +1664,15 @@ private fun NegotiationCalculatorCard(
                             when (language) {
                                 AppLanguage.AR -> "السعر المطلوب (مليون سنتيم)"
                                 AppLanguage.FR -> "Prix demandé (en Millions)"
-                                AppLanguage.EN -> "Seller's Asking Price (Millions)"
+                                AppLanguage.EN -> "Seller's asking price (Millions)"
                             }
                         )
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Emerald700,
-                        unfocusedBorderColor = Slate300
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
                     )
                 )
 
@@ -1366,7 +1714,7 @@ private fun NegotiationCalculatorCard(
                     Icon(
                         imageVector = Icons.Default.Build,
                         contentDescription = null,
-                        tint = Emerald700
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 },
                 label = {
@@ -1374,7 +1722,7 @@ private fun NegotiationCalculatorCard(
                         when (language) {
                             AppLanguage.AR -> "تكلفة الإصلاح حسب تسعيرة الميكانيكي (بالدينار DZD)"
                             AppLanguage.FR -> "Coût des réparations chiffré par votre mécanicien (en DZD)"
-                            AppLanguage.EN -> "Repair Cost Quoted by Your Mechanic (in DZD)"
+                            AppLanguage.EN -> "Repair cost quoted by your mechanic (in DZD)"
                         }
                     )
                 },
@@ -1382,7 +1730,7 @@ private fun NegotiationCalculatorCard(
                     if (mechanicQuoteDzd > 0) {
                         Text(
                             text = "= ${ReportEngine.formatAlgerianCurrency(mechanicQuoteDzd, language)}",
-                            color = Emerald800,
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.SemiBold
                         )
                     } else {
@@ -1392,15 +1740,15 @@ private fun NegotiationCalculatorCard(
                                 AppLanguage.FR -> "Exemple : 45000 (soit 4.5 Millions de centimes)"
                                 AppLanguage.EN -> "Example: 45000 (= 4.5 Million centimes)"
                             },
-                            color = Slate600
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Emerald700,
-                    unfocusedBorderColor = Slate300
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
                 )
             )
 
@@ -1411,30 +1759,30 @@ private fun NegotiationCalculatorCard(
                         .fillMaxWidth()
                         .testTag("fair_offer_result_box"),
                     shape = RoundedCornerShape(12.dp),
-                    color = Emerald50,
-                    border = BorderStroke(1.dp, Emerald200)
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
                             text = when (language) {
                                 AppLanguage.AR -> "السعر المستهدف بعد خصم تسعيرة الميكانيكي:"
                                 AppLanguage.FR -> "Offre cible (Prix demandé − Devis mécanicien) :"
-                                AppLanguage.EN -> "Target Fair Offer (Asking Price − Mechanic Quote):"
+                                AppLanguage.EN -> "Target fair offer (Asking price − Mechanic quote):"
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = Emerald900
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = ReportEngine.formatMillionsCentimes(targetOfferDzd, language),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Emerald800
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Text(
                             text = "(${ReportEngine.formatDzd(targetOfferDzd)})",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Slate600
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1451,15 +1799,15 @@ private fun IdentityAndPaperworkReportCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Slate200)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Description,
                     contentDescription = null,
-                    tint = Emerald700,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1467,11 +1815,11 @@ private fun IdentityAndPaperworkReportCard(
                     text = when (language) {
                         AppLanguage.AR -> "تسمية السيارة والملاحظات العامة"
                         AppLanguage.FR -> "Repère d'immatriculation & Notes générales"
-                        AppLanguage.EN -> "Optional Plate Label & General Notes"
+                        AppLanguage.EN -> "Optional plate label & general notes"
                     },
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Slate900
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -1494,7 +1842,7 @@ private fun IdentityAndPaperworkReportCard(
                 style = MaterialTheme.typography.bodyMedium,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                color = Slate900
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             if (report.inspection.notes.isNotBlank()) {
@@ -1502,12 +1850,12 @@ private fun IdentityAndPaperworkReportCard(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    color = Slate50
+                    color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
                     Text(
                         text = report.inspection.notes,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Slate700,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(10.dp)
                     )
                 }
@@ -1527,7 +1875,7 @@ private fun FindingsSectionCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(
             width = 1.5.dp,
             color = if (isCritical) StatusErrorRed else StatusWarningAmber
@@ -1547,97 +1895,100 @@ private fun FindingsSectionCard(
                         text = title,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Slate900
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Slate600
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            items.forEach { item ->
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 5.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (isCritical) StatusErrorRedContainer.copy(alpha = 0.4f) else StatusWarningAmberContainer.copy(alpha = 0.4f)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+            items.forEachIndexed { idx, item ->
+                if (idx > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = item.getSectionTitle(language),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        )
+                        if (item.maxCostDzd > 0) {
                             Text(
-                                text = item.getSectionTitle(language),
+                                text = "${item.minCostDzd / 1000}k - ${item.maxCostDzd / 1000}k DZD",
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Slate700,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(end = 8.dp)
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isCritical) StatusErrorRed else StatusWarningAmber,
+                                maxLines = 1,
+                                softWrap = false
                             )
-                            if (item.maxCostDzd > 0) {
-                                Text(
-                                    text = "${item.minCostDzd / 1000}k - ${item.maxCostDzd / 1000}k DZD",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (isCritical) StatusErrorRed else StatusWarningAmberOnContainer,
-                                    maxLines = 1,
-                                    softWrap = false
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = item.getQuestion(language),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Text(
+                        text = item.getExplanation(language),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+
+                    val realThumb = remember(item.photoUri) {
+                        InspectionPhotoHelper.loadThumbnailBitmap(item.photoUri, maxDimensionPx = 280)
+                    }
+                    if (item.buyerNote.isNotBlank() || realThumb != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (realThumb != null) {
+                                Image(
+                                    bitmap = realThumb.asImageBitmap(),
+                                    contentDescription = "Inspection evidence photo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                                 )
                             }
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Text(
-                            text = item.getQuestion(language),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Slate900
-                        )
-
-                        Spacer(modifier = Modifier.height(3.dp))
-
-                        Text(
-                            text = item.getExplanation(language),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Slate700,
-                            lineHeight = 18.sp
-                        )
-
-                        val realThumb = remember(item.photoUri) {
-                            InspectionPhotoHelper.loadThumbnailBitmap(item.photoUri, maxDimensionPx = 280)
-                        }
-                        if (item.buyerNote.isNotBlank() || realThumb != null) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                if (realThumb != null) {
-                                    Image(
-                                        bitmap = realThumb.asImageBitmap(),
-                                        contentDescription = "Inspection evidence photo",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .size(64.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .border(1.dp, Emerald600, RoundedCornerShape(8.dp))
-                                    )
-                                }
-                                if (item.buyerNote.isNotBlank()) {
+                            if (item.buyerNote.isNotBlank()) {
+                                val cleanNote = item.buyerNote
+                                    .replace(com.example.ui.viewmodel.FahsViewModel.OBD_AUTO_ANSWER_TAG, "")
+                                    .trim()
+                                if (cleanNote.isNotBlank()) {
                                     Text(
-                                        text = "📝 ${item.buyerNote}",
+                                        text = cleanNote,
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = Slate800
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }

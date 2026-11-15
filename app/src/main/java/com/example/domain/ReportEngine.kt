@@ -90,6 +90,57 @@ data class ObdReportBlockData(
                 dtcCount > 0
             )
 
+    val scanVerdictLevel: String
+        get() = when {
+            !isScanned -> "NOT_SCANNED"
+            !isCommunicationSuccess -> "INCOMPLETE"
+            !milBulbLitAtKeyOn ||
+                milCommandedByEcu == "ON" ||
+                ecuVinComparison == "DIFFERENT" ||
+                faultCodeDetails.any { it.dtcType == DtcType.STORED || it.dtcType == DtcType.PERMANENT } ||
+                liveReadings.any { it.status == "RED" } ||
+                (dtcCount > 0 && faultCodeDetails.isEmpty()) -> "RED"
+            clearedCodesStatus == "STRONG_WARNING" ||
+                clearedCodesStatus == "CANNOT_RULE_OUT" ||
+                faultCodeDetails.isNotEmpty() ||
+                liveReadings.any { it.status == "ORANGE" } -> "ORANGE"
+            else -> "GREEN"
+        }
+
+    fun getSectionAVerdictHeadline(lang: AppLanguage): String = when (scanVerdictLevel) {
+        "GREEN" -> when (lang) {
+            AppLanguage.AR -> "المحرك والإلكترونيات: لم يرصد الفحص أي مشكلة"
+            AppLanguage.FR -> "Moteur et électronique : aucun problème détecté par le scan"
+            AppLanguage.EN -> "Engine and electronics: no problem detected by the scan"
+        }
+        "ORANGE" -> when (lang) {
+            AppLanguage.AR -> "المحرك والإلكترونيات: بعض النقاط تحتاج للمراقبة"
+            AppLanguage.FR -> "Moteur et électronique : quelques points à vérifier"
+            AppLanguage.EN -> "Engine and electronics: some points to check"
+        }
+        "RED" -> when (lang) {
+            AppLanguage.AR -> "المحرك والإلكترونيات: تنبيه خطير مرصود"
+            AppLanguage.FR -> "Moteur et électronique : alerte sérieuse détectée"
+            AppLanguage.EN -> "Engine and electronics: serious warning detected"
+        }
+        "INCOMPLETE" -> when (lang) {
+            AppLanguage.AR -> "المحرك والإلكترونيات: فحص غير مكتمل"
+            AppLanguage.FR -> "Moteur et électronique : scan incomplet"
+            AppLanguage.EN -> "Engine and electronics: incomplete scan"
+        }
+        else -> when (lang) {
+            AppLanguage.AR -> "لم يتم إجراء الفحص الآلي للمحرك والإلكترونيات"
+            AppLanguage.FR -> "Scan automatique du moteur et de l'électronique non effectué"
+            AppLanguage.EN -> "Automatic engine and electronics scan not done"
+        }
+    }
+
+    fun getScopeDisclaimerText(lang: AppLanguage): String = when (lang) {
+        AppLanguage.AR -> "فحص الكمبيوتر يقرأ المحرك والإلكترونيات فقط، ولا يكشف صدمات الهيكل أو الصدأ أو الدبرياج أو نظام التعليق أو لمبات Airbag و ABS."
+        AppLanguage.FR -> "Ce scan lit uniquement le calculateur moteur. Il ne voit ni les chocs, ni la rouille, ni l'embrayage, ni la suspension, ni les systèmes Airbag et ABS."
+        AppLanguage.EN -> "This scan reads the engine computer only. It cannot see accident damage, rust, the clutch, the suspension, or the airbag and ABS systems."
+    }
+
     fun getConnectionStatusText(lang: AppLanguage): String {
         if (!isScanned) {
             return when (lang) {
@@ -265,8 +316,15 @@ data class InspectionReportData(
     val hasObdScanIncluded: Boolean,
     val obdSummaryNote: String?,
     val obdBlock: ObdReportBlockData,
-    val areaScores: List<AreaScoreSummary> = emptyList()
+    val areaScores: List<AreaScoreSummary> = emptyList(),
+    val manualVisualCheckedCount: Int = 0
 ) {
+    val isVisualCheckDone: Boolean
+        get() = manualVisualCheckedCount > 0
+
+    val isScanOnlyReport: Boolean
+        get() = hasObdScanIncluded && !isVisualCheckDone
+
     fun getVerdictTitle(lang: AppLanguage): String = when (verdict) {
         "INCOMPLETE" -> when (lang) {
             AppLanguage.AR -> "الفحص غير مكتمل — لا توجد نتيجة أو حكم بعد"
@@ -288,6 +346,175 @@ data class InspectionReportData(
             AppLanguage.FR -> "Attention — Risque élevé / Avis mécanicien requis"
             AppLanguage.EN -> "High Risk — Mechanic Opinion Required / Walk Away"
         }
+    }
+
+    /**
+     * Part 5: Display verdict title that ensures a scan-only report never reads as "car is good to buy"
+     * or as an unexplained "incomplete" error, instead presenting the Engine & Electronics scan verdict
+     * and noting that the visual check was not done.
+     */
+    fun getDisplayVerdictTitle(lang: AppLanguage): String {
+        if (isScanOnlyReport) {
+            val suffix = when (lang) {
+                AppLanguage.AR -> "الفحص البصري لم يُجرَ"
+                AppLanguage.FR -> "contrôle visuel non effectué"
+                AppLanguage.EN -> "visual check not done"
+            }
+            return "${obdBlock.getSectionAVerdictHeadline(lang)} ($suffix)"
+        }
+        return getVerdictTitle(lang)
+    }
+
+    fun getSectionATitle(lang: AppLanguage): String = when (lang) {
+        AppLanguage.AR -> "القسم أ — المحرك والإلكترونيات (من الفحص الآلي)"
+        AppLanguage.FR -> "Section A — Moteur et électronique (du scan automatique)"
+        AppLanguage.EN -> "Section A — Engine & electronics (from the automatic scan)"
+    }
+
+    fun getSectionBTitle(lang: AppLanguage): String = when (lang) {
+        AppLanguage.AR -> "القسم ب — الهيكل والإطارات والوثائق وتجربة القيادة (من الفحص البصري)"
+        AppLanguage.FR -> "Section B — Carrosserie, pneus, papiers et essai routier (du contrôle visuel)"
+        AppLanguage.EN -> "Section B — Body, tyres, papers & road test (from the visual check)"
+    }
+
+    fun getVisualCheckNotDoneNotice(lang: AppLanguage): String = when (lang) {
+        AppLanguage.AR -> "لم يتم إجراء الفحص البصري — تم فحص المحرك والإلكترونيات فقط. لم يتم التحقق من الهيكل (اللونجرون)، الطلاء، الإطارات، البطاقة الرمادية، لمبات Airbag/ABS، وتجربة القيادة."
+        AppLanguage.FR -> "Contrôle visuel non effectué — seuls le moteur et l'électronique ont été scannés. La carrosserie, les longerons, les pneus, la carte grise, les voyants Airbag/ABS et l'essai routier n'ont pas été vérifiés."
+        AppLanguage.EN -> "Visual check not done — only the engine and electronics were scanned. Bodywork, structural rails, tyres, registration card (carte grise), airbag/ABS lights, and road test were not checked."
+    }
+
+    fun getWhatToAskMechanicTitle(lang: AppLanguage): String = when (lang) {
+        AppLanguage.AR -> "ما يجب أن تسأله للميكانيكي قبل الشراء"
+        AppLanguage.FR -> "Ce qu'il faut demander à un mécanicien avant d'acheter"
+        AppLanguage.EN -> "What to ask a mechanic before you buy"
+    }
+
+    fun getWhatToAskMechanicItems(lang: AppLanguage): List<String> {
+        val items = mutableListOf<String>()
+        if (obdBlock.isScanned && !obdBlock.milBulbLitAtKeyOn) {
+            items.add(
+                when (lang) {
+                    AppLanguage.AR -> "التحقق من لوحة العدادات وسبب عدم إضاءة لمبة تحذير المحرك عند فتح الكونتاكت."
+                    AppLanguage.FR -> "Vérifier le tableau de bord : le voyant moteur ne s'est pas allumé au contact."
+                    AppLanguage.EN -> "Check the dashboard cluster: the engine warning light did not light up at key-on."
+                }
+            )
+        }
+        if (obdBlock.isScanned && obdBlock.ecuVinComparison == "DIFFERENT") {
+            items.add(
+                when (lang) {
+                    AppLanguage.AR -> "التحقق من تطابق رقم الشاسيه المحفور مع الكمبيوتر والبطاقة الرمادية (الرقم الإلكتروني مختلف)."
+                    AppLanguage.FR -> "Contrôler la concordance du numéro de châssis frappé, du calculateur et de la carte grise."
+                    AppLanguage.EN -> "Verify why the engine computer VIN does not match the registration card (carte grise)."
+                }
+            )
+        }
+        for (dtc in obdBlock.faultCodeDetails) {
+            items.add(
+                when (lang) {
+                    AppLanguage.AR -> "تشخيص كود العطل الإلكتروني ${dtc.code} (${dtc.getTitle(lang)}) وتحديد سبب ظهوره وتكلفة إصلاحه."
+                    AppLanguage.FR -> "Diagnostiquer le code défaut ${dtc.code} (${dtc.getTitle(lang)}) et chiffrer la réparation."
+                    AppLanguage.EN -> "Diagnose fault code ${dtc.code} (${dtc.getTitle(lang)}) and quote the repair cost."
+                }
+            )
+        }
+        if (obdBlock.isScanned && obdBlock.clearedCodesStatus == "STRONG_WARNING") {
+            items.add(
+                when (lang) {
+                    AppLanguage.AR -> "إجراء تجربة قيادة لمسافة 20 كم ثم إعادة فحص الكمبيوتر لأن ذاكرة الأعطال مُسحت حديثاً."
+                    AppLanguage.FR -> "Effectuer un essai routier de 20 km puis rescanner le calculateur car la mémoire a été effacée récemment."
+                    AppLanguage.EN -> "Run a 20 km road test and re-scan the car because fault memory was cleared very recently."
+                }
+            )
+        }
+        for (gauge in obdBlock.liveReadings.filter { it.status == "ORANGE" || it.status == "RED" }) {
+            items.add(
+                when (lang) {
+                    AppLanguage.AR -> "مراقبة قراءة ${gauge.getName(lang)} (${gauge.valueText}) والتأكد من سلامة القطعة المرتبطة بها."
+                    AppLanguage.FR -> "Contrôler la valeur mesurée pour ${gauge.getName(lang)} (${gauge.valueText})."
+                    AppLanguage.EN -> "Check the ${gauge.getName(lang)} reading (${gauge.valueText}) in workshop conditions."
+                }
+            )
+        }
+        for (crit in criticalProblems.filter { it.itemId != "obd_ecu_diagnostic_scan" }) {
+            items.add(
+                when (lang) {
+                    AppLanguage.AR -> "فحص معمق على الرافعة للنقطة الحرجة: ${crit.getQuestion(lang)}"
+                    AppLanguage.FR -> "Examiner sur pont élévateur le point critique : ${crit.getQuestion(lang)}"
+                    AppLanguage.EN -> "Inspect on a workshop lift the critical issue: ${crit.getQuestion(lang)}"
+                }
+            )
+        }
+        for (imp in negotiableProblems.filter { it.itemId != "obd_ecu_diagnostic_scan" }.take(3)) {
+            items.add(
+                when (lang) {
+                    AppLanguage.AR -> "تقدير تكلفة إصلاح: ${imp.getQuestion(lang)}"
+                    AppLanguage.FR -> "Chiffrer la remise en état pour : ${imp.getQuestion(lang)}"
+                    AppLanguage.EN -> "Provide a repair quote for: ${imp.getQuestion(lang)}"
+                }
+            )
+        }
+        if (!isVisualCheckDone) {
+            items.add(
+                when (lang) {
+                    AppLanguage.AR -> "بما أن الفحص شمل الكمبيوتر فقط: اطلب من الميكانيكي والسمكري فحص الشاسيه (اللونجرون)، الطلاء، الدبرياج، نظام التعليق، ولمبات Airbag و ABS."
+                    AppLanguage.FR -> "Comme seul le calculateur moteur a été scanné : faire contrôler les longerons, la carrosserie, l'embrayage, les trains roulants et les voyants Airbag/ABS."
+                    AppLanguage.EN -> "Since only the engine computer was scanned: have the mechanic inspect the chassis rails, bodywork, clutch, suspension, and Airbag/ABS lights."
+                }
+            )
+        } else if (uncheckedCriticalItems.isNotEmpty()) {
+            items.add(
+                when (lang) {
+                    AppLanguage.AR -> "فحص النقاط الحرجة التي تعذر فحصها ميدانياً (${uncheckedCriticalItems.size} نقطة) قبل دفع أي عربون."
+                    AppLanguage.FR -> "Vérifier sur pont les ${uncheckedCriticalItems.size} point(s) critique(s) non contrôlés sur place avant tout acompte."
+                    AppLanguage.EN -> "Verify the ${uncheckedCriticalItems.size} unchecked critical point(s) on a lift before paying any deposit."
+                }
+            )
+        }
+        if (items.isEmpty()) {
+            items.add(
+                when (lang) {
+                    AppLanguage.AR -> "إجراء مراقبة روتينية سريعة لأسفل السيارة والفرامل على الرافعة لتأكيد الحالة السليمة قبل إتمام الشراء."
+                    AppLanguage.FR -> "Effectuer un contrôle visuel final sur pont (soubassement et freins) pour confirmer le bon état avant l'achat."
+                    AppLanguage.EN -> "Do a quick final check of the underbody and brakes on a lift to confirm everything before payment."
+                }
+            )
+        }
+        return items
+    }
+
+    fun getPointsToDiscussOnPriceTitle(lang: AppLanguage): String = when (lang) {
+        AppLanguage.AR -> "نقاط لمناقشتها في السعر"
+        AppLanguage.FR -> "Points à discuter sur le prix"
+        AppLanguage.EN -> "Points to discuss on the price"
+    }
+
+    fun getPointsToDiscussOnPriceItems(lang: AppLanguage): List<String> {
+        val points = mutableListOf<String>()
+        val manualDefects = (negotiableProblems + criticalProblems).filter { it.itemId != "obd_ecu_diagnostic_scan" }
+        for (defect in manualDefects) {
+            val cleanNote = defect.buyerNote
+                .replace(com.example.ui.viewmodel.FahsViewModel.OBD_AUTO_ANSWER_TAG, "")
+                .trim()
+            val noteSuffix = if (cleanNote.isNotBlank()) " — $cleanNote" else ""
+            points.add("${defect.getQuestion(lang)}$noteSuffix")
+        }
+        for (gauge in obdBlock.liveReadings.filter { it.status == "ORANGE" || it.status == "RED" }) {
+            points.add("${gauge.getName(lang)} : ${gauge.valueText}")
+        }
+        for (dtc in obdBlock.faultCodeDetails) {
+            points.add("${dtc.code} — ${dtc.getTitle(lang)}")
+        }
+        if (points.isEmpty()) {
+            points.add(
+                when (lang) {
+                    AppLanguage.AR -> "لم يتم تسجيل عيوب تستوجب خصماً مباشراً من السعر في النقاط المفحوصة. يمكنك إدخال تسعيرة الميكانيكي أدناه إذا ظهرت ملاحظات على الرافعة."
+                    AppLanguage.FR -> "Aucun défaut nécessitant une déduction immédiate n'a été relevé sur les points vérifiés. Vous pouvez saisir un devis mécanicien ci-dessous si besoin."
+                    AppLanguage.EN -> "No defects requiring a price deduction were recorded on the checked items. You can enter a mechanic's quote below if anything is found on the lift."
+                }
+            )
+        }
+        return points
     }
 
     /**
@@ -760,6 +987,12 @@ object ReportEngine {
         val effectiveAvgDzd = if (userMechanicQuoteDzd > 0) userMechanicQuoteDzd else verifiedAvgDzd
 
         val obdBlock = buildObdReportBlock(inspection, obdSaved, savedAnswers)
+        val manualVisualCheckedCount = adaptiveItems.count { def ->
+            val saved = answersById[def.id]
+            saved != null &&
+                (saved.status == "GOOD" || saved.status == "PROBLEM" || saved.status == "UNCHECKED") &&
+                !saved.note.startsWith(com.example.ui.viewmodel.FahsViewModel.OBD_AUTO_ANSWER_TAG)
+        }
 
         return InspectionReportData(
             inspection = inspection,
@@ -784,7 +1017,8 @@ object ReportEngine {
             hasObdScanIncluded = obdBlock.isScanned,
             obdSummaryNote = obdSaved?.note,
             obdBlock = obdBlock,
-            areaScores = areaScores
+            areaScores = areaScores,
+            manualVisualCheckedCount = manualVisualCheckedCount
         )
     }
 

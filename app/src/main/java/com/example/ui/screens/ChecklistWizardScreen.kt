@@ -185,8 +185,8 @@ fun ChecklistWizardScreen(
         savedAnswers.associateBy { it.itemId }
     }
 
-    var currentIndex by remember { mutableIntStateOf(0) }
-    var hasInitializedIndex by remember(inspection.id) { mutableStateOf(false) }
+    var currentIndex by remember(inspection.createdAt) { mutableIntStateOf(0) }
+    var hasInitializedIndex by remember(inspection.createdAt) { mutableStateOf(false) }
 
     // Resume automatically at the first unanswered question when opening an inspection
     LaunchedEffect(savedAnswers, adaptiveItems) {
@@ -316,13 +316,13 @@ fun ChecklistWizardScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Slate50)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // 1. Sticky Progress & Car Summary Header
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color.White,
-            shadowElevation = 3.dp
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 2.dp
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
@@ -340,7 +340,7 @@ fun ChecklistWizardScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Pause and Save",
-                            tint = Slate900
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
@@ -352,12 +352,21 @@ fun ChecklistWizardScreen(
                             .padding(end = 8.dp)
                     ) {
                         Text(
-                            text = "${inspection.carBrand} ${inspection.carModel}",
+                            text = if (isQuickMode) {
+                                when (language) {
+                                    AppLanguage.AR -> "الفحص البصري في 3 دقائق (10 نقاط)"
+                                    AppLanguage.FR -> "Contrôle visuel de 3 min (10 points)"
+                                    AppLanguage.EN -> "3-minute visual check (10 points)"
+                                }
+                            } else {
+                                "${inspection.carBrand} ${inspection.carModel}"
+                            },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Slate900,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.testTag("wizard_header_title")
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         FlowRow(
@@ -365,23 +374,27 @@ fun ChecklistWizardScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = currentItem.section.getTitle(language),
+                                text = if (isQuickMode) {
+                                    "${inspection.carBrand} ${inspection.carModel} • ${currentItem.section.getTitle(language)}"
+                                } else {
+                                    currentItem.section.getTitle(language)
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Emerald700,
+                                color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = Emerald50,
-                                border = BorderStroke(1.dp, Emerald200)
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                             ) {
                                 Text(
                                     text = "${inspection.fuelType} • ${inspection.gearboxType}",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = Emerald800,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                                     maxLines = 1,
                                     softWrap = false,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -393,7 +406,8 @@ fun ChecklistWizardScreen(
                     // Question Counter Pill
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Slate900
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.testTag("wizard_question_counter_pill")
                     ) {
                         Text(
                             text = "${safeIndex + 1} / ${adaptiveItems.size}",
@@ -413,41 +427,107 @@ fun ChecklistWizardScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(5.dp),
-                    color = Emerald600,
-                    trackColor = Slate200
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.outline
                 )
 
-                // Horizontal Section Quick-Jump Bar
-                val sectionsInFlow = remember(adaptiveItems) {
-                    adaptiveItems.map { it.section }.distinct()
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    sectionsInFlow.forEach { sec ->
-                        val isCurrentSection = sec == currentItem.section
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    val firstIdx = adaptiveItems.indexOfFirst { it.section == sec }
-                                    if (firstIdx >= 0) currentIndex = firstIdx
-                                },
-                            color = if (isCurrentSection) Emerald700 else Slate100
-                        ) {
-                            Text(
-                                text = sec.getTitle(language),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (isCurrentSection) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isCurrentSection) Color.White else Slate700,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
+                if (isQuickMode) {
+                    // 1..10 Point Quick-Jump Pill Bar for the 3-Minute Visual Check
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .testTag("quick_check_step_bar"),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        adaptiveItems.forEachIndexed { idx, item ->
+                            val isCurrent = idx == safeIndex
+                            val savedAns = answersMap[item.id]
+                            val isObdAnswered = isChecklistItemAnsweredByObdScan(savedAns)
+                            val pillBg = when {
+                                isCurrent -> MaterialTheme.colorScheme.primary
+                                savedAns?.status == "GOOD" -> StatusPassGreenContainer
+                                savedAns?.status == "PROBLEM" -> StatusErrorRedContainer
+                                savedAns != null -> MaterialTheme.colorScheme.surfaceVariant
+                                else -> MaterialTheme.colorScheme.surface
+                            }
+                            val pillBorder = when {
+                                isCurrent -> MaterialTheme.colorScheme.primary
+                                savedAns?.status == "GOOD" -> StatusPassGreen
+                                savedAns?.status == "PROBLEM" -> StatusErrorRed
+                                else -> MaterialTheme.colorScheme.outline
+                            }
+                            val pillTextColor = when {
+                                isCurrent -> Color.White
+                                savedAns?.status == "GOOD" -> StatusPassGreenOnContainer
+                                savedAns?.status == "PROBLEM" -> StatusErrorRedOnContainer
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
+                            val statusSuffix = when {
+                                isObdAnswered -> " · OBD ✓"
+                                savedAns?.status == "GOOD" -> " ✓"
+                                savedAns?.status == "PROBLEM" -> " !"
+                                savedAns?.status == "UNCHECKED" -> " –"
+                                else -> ""
+                            }
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { currentIndex = idx }
+                                    .testTag("quick_step_pill_${idx + 1}"),
+                                color = pillBg,
+                                border = BorderStroke(1.dp, pillBorder)
+                            ) {
+                                Text(
+                                    text = "${idx + 1}$statusSuffix",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (isCurrent || savedAns != null) FontWeight.Bold else FontWeight.Medium,
+                                    color = pillTextColor,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Horizontal Section Quick-Jump Bar for Full Mode
+                    val sectionsInFlow = remember(adaptiveItems) {
+                        adaptiveItems.map { it.section }.distinct()
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        sectionsInFlow.forEach { sec ->
+                            val isCurrentSection = sec == currentItem.section
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        val firstIdx = adaptiveItems.indexOfFirst { it.section == sec }
+                                        if (firstIdx >= 0) currentIndex = firstIdx
+                                    },
+                                color = if (isCurrentSection) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isCurrentSection) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                )
+                            ) {
+                                Text(
+                                    text = sec.getTitle(language),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (isCurrentSection) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isCurrentSection) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -470,7 +550,8 @@ fun ChecklistWizardScreen(
             ) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = Slate100
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
@@ -479,7 +560,7 @@ fun ChecklistWizardScreen(
                         Icon(
                             imageVector = Icons.Default.Save,
                             contentDescription = null,
-                            tint = Emerald700,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
@@ -490,7 +571,7 @@ fun ChecklistWizardScreen(
                                 AppLanguage.EN -> "Auto-saved ($answeredCount/${adaptiveItems.size})"
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = Slate700,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -503,8 +584,8 @@ fun ChecklistWizardScreen(
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onOpenObdScanner() }
                         .testTag("wizard_open_obd_btn"),
-                    color = if (hasObdScanned) StatusPassGreenContainer else Emerald100,
-                    border = BorderStroke(1.dp, if (hasObdScanned) StatusPassGreen else Emerald600)
+                    color = if (hasObdScanned) StatusPassGreenContainer else MaterialTheme.colorScheme.primaryContainer,
+                    border = BorderStroke(1.dp, if (hasObdScanned) StatusPassGreen else MaterialTheme.colorScheme.primary)
                 ) {
                     Text(
                         text = if (hasObdScanned) {
@@ -522,7 +603,7 @@ fun ChecklistWizardScreen(
                         },
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = if (hasObdScanned) StatusPassGreenOnContainer else Emerald900,
+                        color = if (hasObdScanned) StatusPassGreenOnContainer else MaterialTheme.colorScheme.onPrimaryContainer,
                         maxLines = 1,
                         softWrap = false,
                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
@@ -541,7 +622,7 @@ fun ChecklistWizardScreen(
                             onFinishInspection(score, verdict, totalDzd)
                         }
                         .testTag("wizard_open_report_btn"),
-                    color = Slate900
+                    color = MaterialTheme.colorScheme.primary
                 ) {
                     Text(
                         text = when (language) {
@@ -607,6 +688,34 @@ fun ChecklistWizardScreen(
                 }
             )
 
+            // Part 4: If any of the 10 visual-check points was already answered by the OBD scan,
+            // show a calm note explaining that scan-answered points are pre-filled and skipped.
+            val obdAnsweredInListCount = remember(adaptiveItems, answersMap) {
+                adaptiveItems.count { isChecklistItemAnsweredByObdScan(answersMap[it.id]) }
+            }
+            if (isQuickMode && obdAnsweredInListCount > 0 && !isChecklistItemAnsweredByObdScan(currentSaved)) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("quick_check_obd_skipped_banner"),
+                    shape = RoundedCornerShape(10.dp),
+                    color = StatusPassGreenContainer,
+                    border = BorderStroke(1.dp, StatusPassGreen)
+                ) {
+                    Text(
+                        text = when (language) {
+                            AppLanguage.AR -> "✓ تم ملء وتخطي $obdAnsweredInListCount من النقاط تلقائياً لأن الفحص الإلكتروني أجاب عنها مسبقاً."
+                            AppLanguage.FR -> "✓ $obdAnsweredInListCount point(s) déjà rempli(s) par le scan OBD et passé(s) automatiquement."
+                            AppLanguage.EN -> "✓ $obdAnsweredInListCount point(s) already answered by the OBD scan and skipped automatically."
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = StatusPassGreenOnContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+            }
+
             // Phase 7 (Item 1): If this item was answered by the OBD scan, show clear badge
             if (isChecklistItemAnsweredByObdScan(currentSaved) && currentSaved != null) {
                 AnsweredByObdScanBanner(
@@ -615,8 +724,9 @@ fun ChecklistWizardScreen(
                 )
             }
 
-            // Visual Car Zone Diagram + Severity & Repair Cost Card
+            // Visual Car Zone & Custom Point Illustration + Severity Card
             CarZoneDiagramCard(
+                itemId = currentItem.id,
                 section = currentItem.section,
                 severity = currentItem.severity,
                 isKnownWeakPoint = currentItem.isKnownModelWeakPoint,
@@ -631,16 +741,16 @@ fun ChecklistWizardScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.5.dp, Slate200),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
                         text = currentItem.getQuestion(language),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Slate900,
+                        color = MaterialTheme.colorScheme.onSurface,
                         lineHeight = 28.sp
                     )
 
@@ -653,8 +763,8 @@ fun ChecklistWizardScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .clickable { showHowToCheck = !showHowToCheck }
                             .testTag("how_to_check_toggle"),
-                        color = Emerald50,
-                        border = BorderStroke(1.dp, Emerald200)
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(
@@ -671,7 +781,7 @@ fun ChecklistWizardScreen(
                                     Icon(
                                         imageVector = Icons.Default.HelpOutline,
                                         contentDescription = null,
-                                        tint = Emerald800,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -683,12 +793,12 @@ fun ChecklistWizardScreen(
                                         },
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.Bold,
-                                        color = Emerald900
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                                 Text(
                                     text = if (showHowToCheck) "▲" else "▼",
-                                    color = Emerald800,
+                                    color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -698,7 +808,7 @@ fun ChecklistWizardScreen(
                                     Text(
                                         text = currentItem.getHowToCheck(language),
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = Slate800,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         lineHeight = 21.sp
                                     )
 
@@ -778,6 +888,34 @@ fun ChecklistWizardScreen(
             }
 
             // 3. Three Large Outdoor Answer Buttons (GOOD / PROBLEM / COULD NOT CHECK)
+            // Part 4 Completion Rule: When all 10 points are answered (or skipped), save the answers and open the Combined Report.
+            val handleAnswerAndAdvance: (String) -> Unit = { chosenStatus ->
+                hasInitializedIndex = true
+                onSaveAnswer(currentItem, chosenStatus, noteText, photoLabel, adaptiveItems.size)
+                val updatedStatusMap = answersMap.mapValues { it.value.status }.toMutableMap().apply {
+                    put(currentItem.id, chosenStatus)
+                }
+                if (isQuickMode) {
+                    val nextUnansweredIdx = ((safeIndex + 1) until adaptiveItems.size)
+                        .firstOrNull { idx -> !updatedStatusMap.containsKey(adaptiveItems[idx].id) }
+                        ?: (0 until safeIndex).firstOrNull { idx -> !updatedStatusMap.containsKey(adaptiveItems[idx].id) }
+                    if (nextUnansweredIdx != null) {
+                        currentIndex = nextUnansweredIdx
+                    } else {
+                        // All 10 visual-check points are now answered or skipped -> open Combined Report
+                        val (score, verdict, totalDzd) = ChecklistEngine.calculateScoreAndVerdict(
+                            answers = updatedStatusMap,
+                            items = adaptiveItems
+                        )
+                        onFinishInspection(score, verdict, totalDzd)
+                    }
+                } else {
+                    if (safeIndex < adaptiveItems.size - 1) {
+                        currentIndex = findNextIndexSkippingObdAnswered(safeIndex, adaptiveItems, answersMap)
+                    }
+                }
+            }
+
             val currentStatus = currentSaved?.status
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -793,18 +931,13 @@ fun ChecklistWizardScreen(
                     subLabel = currentItem.getGoodResult(language),
                     isSelected = currentStatus == "GOOD",
                     activeBgColor = StatusPassGreen,
-                    inactiveBgColor = StatusPassGreenContainer.copy(alpha = 0.55f),
+                    inactiveBgColor = StatusPassGreenContainer,
                     activeContentColor = Color.White,
                     inactiveContentColor = StatusPassGreenOnContainer,
                     borderColor = StatusPassGreen,
                     icon = Icons.Default.CheckCircle,
                     testTag = "answer_good_btn",
-                    onClick = {
-                        onSaveAnswer(currentItem, "GOOD", noteText, photoLabel, adaptiveItems.size)
-                        if (safeIndex < adaptiveItems.size - 1) {
-                            currentIndex = findNextIndexSkippingObdAnswered(safeIndex, adaptiveItems, answersMap)
-                        }
-                    }
+                    onClick = { handleAnswerAndAdvance("GOOD") }
                 )
 
                 // Button 2: PROBLEM (RED)
@@ -817,18 +950,13 @@ fun ChecklistWizardScreen(
                     subLabel = currentItem.getBadResult(language),
                     isSelected = currentStatus == "PROBLEM",
                     activeBgColor = StatusErrorRed,
-                    inactiveBgColor = StatusErrorRedContainer.copy(alpha = 0.55f),
+                    inactiveBgColor = StatusErrorRedContainer,
                     activeContentColor = Color.White,
                     inactiveContentColor = StatusErrorRedOnContainer,
                     borderColor = StatusErrorRed,
                     icon = Icons.Default.Cancel,
                     testTag = "answer_problem_btn",
-                    onClick = {
-                        onSaveAnswer(currentItem, "PROBLEM", noteText, photoLabel, adaptiveItems.size)
-                        if (safeIndex < adaptiveItems.size - 1) {
-                            currentIndex = findNextIndexSkippingObdAnswered(safeIndex, adaptiveItems, answersMap)
-                        }
-                    }
+                    onClick = { handleAnswerAndAdvance("PROBLEM") }
                 )
 
                 // Button 3: COULD NOT CHECK (GREY)
@@ -845,18 +973,13 @@ fun ChecklistWizardScreen(
                     },
                     isSelected = currentStatus == "UNCHECKED",
                     activeBgColor = Slate700,
-                    inactiveBgColor = Slate100,
+                    inactiveBgColor = MaterialTheme.colorScheme.surfaceVariant,
                     activeContentColor = Color.White,
-                    inactiveContentColor = Slate800,
-                    borderColor = Slate400,
+                    inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+                    borderColor = MaterialTheme.colorScheme.outline,
                     icon = Icons.Default.RemoveCircleOutline,
                     testTag = "answer_unchecked_btn",
-                    onClick = {
-                        onSaveAnswer(currentItem, "UNCHECKED", noteText, photoLabel, adaptiveItems.size)
-                        if (safeIndex < adaptiveItems.size - 1) {
-                            currentIndex = findNextIndexSkippingObdAnswered(safeIndex, adaptiveItems, answersMap)
-                        }
-                    }
+                    onClick = { handleAnswerAndAdvance("UNCHECKED") }
                 )
             }
 
@@ -864,8 +987,8 @@ fun ChecklistWizardScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Slate200)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(
@@ -978,8 +1101,8 @@ fun ChecklistWizardScreen(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
-                            color = Emerald50,
-                            border = BorderStroke(1.dp, Emerald200)
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
                                 Text(
@@ -989,7 +1112,7 @@ fun ChecklistWizardScreen(
                                         AppLanguage.EN -> "Camera access is used solely to photograph car findings and include them in your PDF report (stored privately on your phone)."
                                     },
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = Emerald900
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Button(
@@ -998,7 +1121,7 @@ fun ChecklistWizardScreen(
                                         cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                                     },
                                     shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Emerald700),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                     modifier = Modifier.testTag("confirm_wizard_camera_perm_btn")
                                 ) {
                                     Text(
@@ -1025,8 +1148,8 @@ fun ChecklistWizardScreen(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            color = Emerald50,
-                            border = BorderStroke(1.dp, Emerald200)
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -1041,7 +1164,7 @@ fun ChecklistWizardScreen(
                                     modifier = Modifier
                                         .size(72.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .border(1.dp, Emerald600, RoundedCornerShape(8.dp))
+                                        .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
@@ -1053,7 +1176,7 @@ fun ChecklistWizardScreen(
                                         },
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = Emerald900
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
                                         text = when (language) {
@@ -1062,7 +1185,7 @@ fun ChecklistWizardScreen(
                                             AppLanguage.EN -> "Will be included at reduced size in the PDF"
                                         },
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = Slate600
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                                 IconButton(
@@ -1138,8 +1261,8 @@ fun ChecklistWizardScreen(
                                     )
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Emerald700,
-                                    unfocusedBorderColor = Slate300
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
                                 )
                             )
                         }
@@ -1151,8 +1274,8 @@ fun ChecklistWizardScreen(
         // 5. Bottom Navigation Bar (Previous / Next / Finish Report)
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color.White,
-            shadowElevation = 8.dp
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 4.dp
         ) {
             Row(
                 modifier = Modifier
@@ -1202,7 +1325,7 @@ fun ChecklistWizardScreen(
                             .height(48.dp)
                             .testTag("wizard_next_btn"),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Emerald700)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Text(
                             text = when (language) {
@@ -1238,7 +1361,7 @@ fun ChecklistWizardScreen(
                             .height(48.dp)
                             .testTag("wizard_finish_btn"),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Emerald800)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Flag,
@@ -1268,6 +1391,7 @@ fun ChecklistWizardScreen(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CarZoneDiagramCard(
+    itemId: String,
     section: ChecklistSection,
     severity: ItemSeverity,
     isKnownWeakPoint: Boolean,
@@ -1277,10 +1401,16 @@ private fun CarZoneDiagramCard(
     whereToLook: String,
     language: AppLanguage
 ) {
+    val primaryLineColor = MaterialTheme.colorScheme.primary
+    val accentLineColor = MaterialTheme.colorScheme.onSurfaceVariant
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("visual_point_illustration_card"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Slate900)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -1288,63 +1418,280 @@ private fun CarZoneDiagramCard(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Top-Down Car Schematic Highlighting Active Inspection Zone
+            // Custom Vector Line Illustration for each of the 10 Visual-Check Points (with zone fallback)
             Box(
                 modifier = Modifier
-                    .size(width = 74.dp, height = 96.dp)
+                    .size(width = 78.dp, height = 96.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Slate800)
-                    .padding(6.dp),
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+                    .padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val w = size.width
                     val h = size.height
-                    // Car outline
-                    drawRoundRect(
-                        color = Color(0xFF64748B),
-                        topLeft = Offset(w * 0.18f, h * 0.08f),
-                        size = Size(w * 0.64f, h * 0.84f),
-                        cornerRadius = CornerRadius(18f, 18f),
-                        style = Stroke(width = 3.5f)
-                    )
-                    // Highlighted inspection zone
-                    val highlightColor = Color(0xFF34D399)
-                    when (section) {
-                        ChecklistSection.UNDER_BONNET_COLD,
-                        ChecklistSection.ENGINE_START,
-                        ChecklistSection.AFTER_DRIVE -> {
-                            // Front Engine Bay
+                    val strokeMain = Stroke(width = 3.2f)
+                    val strokeBold = Stroke(width = 4.5f)
+                    when (itemId) {
+                        "doc_vin_three_way_match" -> {
+                            // 1. Stamped Chassis VIN Plate + Magnifying Glass
                             drawRoundRect(
-                                color = highlightColor,
-                                topLeft = Offset(w * 0.22f, h * 0.10f),
-                                size = Size(w * 0.56f, h * 0.24f),
-                                cornerRadius = CornerRadius(10f, 10f)
+                                color = accentLineColor,
+                                topLeft = Offset(w * 0.08f, h * 0.28f),
+                                size = Size(w * 0.84f, h * 0.34f),
+                                cornerRadius = CornerRadius(8f, 8f),
+                                style = strokeMain
                             )
-                        }
-                        ChecklistSection.INTERIOR,
-                        ChecklistSection.DOCUMENTS_IDENTITY,
-                        ChecklistSection.BEFORE_VISIT -> {
-                            // Cabin Center
-                            drawRoundRect(
-                                color = highlightColor,
-                                topLeft = Offset(w * 0.24f, h * 0.36f),
-                                size = Size(w * 0.52f, h * 0.32f),
-                                cornerRadius = CornerRadius(8f, 8f)
-                            )
-                        }
-                        else -> {
-                            // Perimeter / Exterior / Suspension
-                            drawRoundRect(
-                                color = highlightColor,
-                                topLeft = Offset(w * 0.12f, h * 0.04f),
-                                size = Size(w * 0.76f, h * 0.92f),
-                                cornerRadius = CornerRadius(22f, 22f),
-                                style = Stroke(
-                                    width = 5f,
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f)
+                            // Stamped VIN bars inside plate
+                            for (i in 0..4) {
+                                val x = w * (0.18f + i * 0.14f)
+                                drawLine(
+                                    color = primaryLineColor,
+                                    start = Offset(x, h * 0.39f),
+                                    end = Offset(x + w * 0.08f, h * 0.39f),
+                                    strokeWidth = 4.5f
                                 )
+                                drawLine(
+                                    color = primaryLineColor,
+                                    start = Offset(x, h * 0.50f),
+                                    end = Offset(x + w * 0.08f, h * 0.50f),
+                                    strokeWidth = 4.5f
+                                )
+                            }
+                            // Magnifying glass circle & handle
+                            drawCircle(
+                                color = primaryLineColor,
+                                radius = w * 0.22f,
+                                center = Offset(w * 0.62f, h * 0.66f),
+                                style = strokeBold
                             )
+                            drawLine(
+                                color = primaryLineColor,
+                                start = Offset(w * 0.77f, h * 0.79f),
+                                end = Offset(w * 0.92f, h * 0.92f),
+                                strokeWidth = 5f
+                            )
+                        }
+
+                        "doc_carte_grise_owner" -> {
+                            // 2. Carte Grise Registration Card & Official Stamp
+                            drawRoundRect(
+                                color = accentLineColor,
+                                topLeft = Offset(w * 0.12f, h * 0.10f),
+                                size = Size(w * 0.76f, h * 0.80f),
+                                cornerRadius = CornerRadius(10f, 10f),
+                                style = strokeMain
+                            )
+                            // Document text lines
+                            drawLine(primaryLineColor, Offset(w * 0.24f, h * 0.26f), Offset(w * 0.76f, h * 0.26f), strokeWidth = 4.5f)
+                            drawLine(accentLineColor, Offset(w * 0.24f, h * 0.40f), Offset(w * 0.72f, h * 0.40f), strokeWidth = 3f)
+                            drawLine(accentLineColor, Offset(w * 0.24f, h * 0.52f), Offset(w * 0.64f, h * 0.52f), strokeWidth = 3f)
+                            // Official round seal at bottom right
+                            drawCircle(
+                                color = primaryLineColor,
+                                radius = w * 0.16f,
+                                center = Offset(w * 0.62f, h * 0.72f),
+                                style = strokeBold
+                            )
+                        }
+
+                        "bonnet_chassis_longerons" -> {
+                            // 3. Front Structural Rails (Longerons) & Rear Boot Well
+                            drawRoundRect(
+                                color = accentLineColor.copy(alpha = 0.6f),
+                                topLeft = Offset(w * 0.16f, h * 0.06f),
+                                size = Size(w * 0.68f, h * 0.88f),
+                                cornerRadius = CornerRadius(18f, 18f),
+                                style = strokeMain
+                            )
+                            // Twin front longeron beams
+                            drawLine(primaryLineColor, Offset(w * 0.32f, h * 0.08f), Offset(w * 0.32f, h * 0.42f), strokeWidth = 6f)
+                            drawLine(primaryLineColor, Offset(w * 0.68f, h * 0.08f), Offset(w * 0.68f, h * 0.42f), strokeWidth = 6f)
+                            drawLine(primaryLineColor, Offset(w * 0.26f, h * 0.14f), Offset(w * 0.74f, h * 0.14f), strokeWidth = 5f)
+                            // Rear spare wheel well circle
+                            drawCircle(
+                                color = primaryLineColor,
+                                radius = w * 0.18f,
+                                center = Offset(w * 0.50f, h * 0.74f),
+                                style = strokeBold
+                            )
+                        }
+
+                        "ext_paint_respray_mastic" -> {
+                            // 4. Body Panels & Even Door Gap Seam
+                            drawRoundRect(
+                                color = accentLineColor,
+                                topLeft = Offset(w * 0.10f, h * 0.16f),
+                                size = Size(w * 0.80f, h * 0.68f),
+                                cornerRadius = CornerRadius(12f, 12f),
+                                style = strokeMain
+                            )
+                            // Vertical panel gap seam in center
+                            drawLine(primaryLineColor, Offset(w * 0.50f, h * 0.16f), Offset(w * 0.50f, h * 0.84f), strokeWidth = 4.5f)
+                            // Door handle & reflection lines
+                            drawLine(primaryLineColor, Offset(w * 0.60f, h * 0.48f), Offset(w * 0.76f, h * 0.48f), strokeWidth = 4.5f)
+                            drawLine(accentLineColor, Offset(w * 0.22f, h * 0.34f), Offset(w * 0.38f, h * 0.26f), strokeWidth = 3f)
+                        }
+
+                        "ext_tires_wear_date" -> {
+                            // 5. Tyre Tread & Sidewall DOT Oval
+                            drawCircle(
+                                color = accentLineColor,
+                                radius = w * 0.38f,
+                                center = Offset(w * 0.50f, h * 0.42f),
+                                style = strokeBold
+                            )
+                            drawCircle(
+                                color = primaryLineColor,
+                                radius = w * 0.20f,
+                                center = Offset(w * 0.50f, h * 0.42f),
+                                style = strokeMain
+                            )
+                            // DOT oval stamp at bottom
+                            drawRoundRect(
+                                color = primaryLineColor,
+                                topLeft = Offset(w * 0.14f, h * 0.74f),
+                                size = Size(w * 0.72f, h * 0.18f),
+                                cornerRadius = CornerRadius(12f, 12f),
+                                style = strokeBold
+                            )
+                        }
+
+                        "bonnet_oil_cap_mayo" -> {
+                            // 6. Oil Cap & Coolant Tank Level
+                            drawCircle(
+                                color = primaryLineColor,
+                                radius = w * 0.22f,
+                                center = Offset(w * 0.34f, h * 0.34f),
+                                style = strokeBold
+                            )
+                            drawLine(primaryLineColor, Offset(w * 0.22f, h * 0.34f), Offset(w * 0.46f, h * 0.34f), strokeWidth = 4.5f)
+                            // Coolant tank bottle on right/bottom
+                            drawRoundRect(
+                                color = accentLineColor,
+                                topLeft = Offset(w * 0.44f, h * 0.50f),
+                                size = Size(w * 0.42f, h * 0.38f),
+                                cornerRadius = CornerRadius(8f, 8f),
+                                style = strokeMain
+                            )
+                            drawLine(primaryLineColor, Offset(w * 0.48f, h * 0.68f), Offset(w * 0.82f, h * 0.68f), strokeWidth = 4f)
+                        }
+
+                        "int_airbag_abs_lights_key_on" -> {
+                            // 7. Airbag & ABS Warning Lights at Key-On
+                            drawCircle(
+                                color = primaryLineColor,
+                                radius = w * 0.22f,
+                                center = Offset(w * 0.34f, h * 0.34f),
+                                style = strokeBold
+                            )
+                            // Seated passenger diagonal seatbelt line
+                            drawLine(accentLineColor, Offset(w * 0.52f, h * 0.54f), Offset(w * 0.78f, h * 0.26f), strokeWidth = 4f)
+                            // ABS warning circle below
+                            drawCircle(
+                                color = primaryLineColor,
+                                radius = w * 0.24f,
+                                center = Offset(w * 0.56f, h * 0.72f),
+                                style = strokeBold
+                            )
+                        }
+
+                        "start_exhaust_smoke_color" -> {
+                            // 8. Exhaust Tailpipe & Smoke Plume
+                            drawRoundRect(
+                                color = accentLineColor,
+                                topLeft = Offset(w * 0.08f, h * 0.52f),
+                                size = Size(w * 0.38f, h * 0.20f),
+                                cornerRadius = CornerRadius(6f, 6f),
+                                style = strokeBold
+                            )
+                            // Smoke puffs rising to the right
+                            drawCircle(primaryLineColor, radius = w * 0.12f, center = Offset(w * 0.58f, h * 0.56f), style = strokeMain)
+                            drawCircle(primaryLineColor, radius = w * 0.16f, center = Offset(w * 0.74f, h * 0.42f), style = strokeMain)
+                            drawCircle(primaryLineColor, radius = w * 0.13f, center = Offset(w * 0.66f, h * 0.26f), style = strokeMain)
+                        }
+
+                        "drive_manual_clutch_slip", "drive_auto_gearbox_shifts" -> {
+                            // 9. Gearbox H-Gate / Shifter
+                            drawRoundRect(
+                                color = accentLineColor,
+                                topLeft = Offset(w * 0.14f, h * 0.14f),
+                                size = Size(w * 0.72f, h * 0.72f),
+                                cornerRadius = CornerRadius(14f, 14f),
+                                style = strokeMain
+                            )
+                            // H-pattern gear gate
+                            drawLine(primaryLineColor, Offset(w * 0.30f, h * 0.28f), Offset(w * 0.30f, h * 0.72f), strokeWidth = 4.5f)
+                            drawLine(primaryLineColor, Offset(w * 0.50f, h * 0.28f), Offset(w * 0.50f, h * 0.72f), strokeWidth = 4.5f)
+                            drawLine(primaryLineColor, Offset(w * 0.70f, h * 0.28f), Offset(w * 0.70f, h * 0.72f), strokeWidth = 4.5f)
+                            drawLine(primaryLineColor, Offset(w * 0.30f, h * 0.50f), Offset(w * 0.70f, h * 0.50f), strokeWidth = 4.5f)
+                        }
+
+                        "drive_steering_brakes_straight" -> {
+                            // 10. Steering Wheel & Straight Braking Line
+                            drawCircle(
+                                color = primaryLineColor,
+                                radius = w * 0.34f,
+                                center = Offset(w * 0.50f, h * 0.56f),
+                                style = strokeBold
+                            )
+                            drawCircle(
+                                color = primaryLineColor,
+                                radius = w * 0.10f,
+                                center = Offset(w * 0.50f, h * 0.56f),
+                                style = strokeMain
+                            )
+                            // Spokes
+                            drawLine(primaryLineColor, Offset(w * 0.20f, h * 0.56f), Offset(w * 0.80f, h * 0.56f), strokeWidth = 4f)
+                            drawLine(primaryLineColor, Offset(w * 0.50f, h * 0.56f), Offset(w * 0.50f, h * 0.86f), strokeWidth = 4f)
+                            // Straight road tracking line at top
+                            drawLine(accentLineColor, Offset(w * 0.50f, h * 0.06f), Offset(w * 0.50f, h * 0.20f), strokeWidth = 4.5f)
+                        }
+
+                        else -> {
+                            // Fallback Top-Down Car Zone Schematic for Full Mode items
+                            drawRoundRect(
+                                color = accentLineColor,
+                                topLeft = Offset(w * 0.18f, h * 0.08f),
+                                size = Size(w * 0.64f, h * 0.84f),
+                                cornerRadius = CornerRadius(18f, 18f),
+                                style = strokeMain
+                            )
+                            when (section) {
+                                ChecklistSection.UNDER_BONNET_COLD,
+                                ChecklistSection.ENGINE_START,
+                                ChecklistSection.AFTER_DRIVE -> {
+                                    drawRoundRect(
+                                        color = primaryLineColor,
+                                        topLeft = Offset(w * 0.22f, h * 0.10f),
+                                        size = Size(w * 0.56f, h * 0.24f),
+                                        cornerRadius = CornerRadius(10f, 10f)
+                                    )
+                                }
+                                ChecklistSection.INTERIOR,
+                                ChecklistSection.DOCUMENTS_IDENTITY,
+                                ChecklistSection.BEFORE_VISIT -> {
+                                    drawRoundRect(
+                                        color = primaryLineColor,
+                                        topLeft = Offset(w * 0.24f, h * 0.36f),
+                                        size = Size(w * 0.52f, h * 0.32f),
+                                        cornerRadius = CornerRadius(8f, 8f)
+                                    )
+                                }
+                                else -> {
+                                    drawRoundRect(
+                                        color = primaryLineColor,
+                                        topLeft = Offset(w * 0.12f, h * 0.04f),
+                                        size = Size(w * 0.76f, h * 0.92f),
+                                        cornerRadius = CornerRadius(22f, 22f),
+                                        style = Stroke(
+                                            width = 5f,
+                                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f)
+                                        )
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1380,7 +1727,7 @@ private fun CarZoneDiagramCard(
                     if (isKnownWeakPoint) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = Emerald700
+                            color = MaterialTheme.colorScheme.primary
                         ) {
                             Text(
                                 text = when (language) {
@@ -1420,14 +1767,14 @@ private fun CarZoneDiagramCard(
                     Icon(
                         imageVector = Icons.Default.LocationOn,
                         contentDescription = null,
-                        tint = Emerald200,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = whereToLook,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         lineHeight = 18.sp
                     )
                 }
@@ -1442,7 +1789,7 @@ private fun CarZoneDiagramCard(
                         },
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Emerald200
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
